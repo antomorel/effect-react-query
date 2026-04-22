@@ -1,0 +1,54 @@
+{
+  "name": "effect-react-query",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "Antonin MOREL",
+  "workspaces": [
+    "example"
+  ],
+  "files": [
+    "dist",
+    "src"
+  ],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdx build",
+    "test": "tsdx test",
+    "test:watch": "tsdx test --watch",
+    "lint": "tsdx lint",
+    "format": "tsdx format",
+    "format:check": "tsdx format --check",
+    "typecheck": "tsdx typecheck",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "bunchee": "^6.10.0",
+    "tsdx": "^2.0.0",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.5"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.99.2",
+    "effect": "^3.21.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
