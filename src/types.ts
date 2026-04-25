@@ -10,6 +10,7 @@ import type {
   QueryFunctionContext,
   NonUndefinedGuard,
   InitialDataFunction,
+  DataTag,
 } from "@tanstack/react-query";
 import type { Effect, ManagedRuntime, Runtime } from "effect";
 
@@ -149,3 +150,42 @@ export type UseEffectSuspenseQueryResult<
   TData = unknown,
   TError = unknown,
 > = UseSuspenseQueryResult<TData, TError>;
+
+/**
+ * Result type for effectQueryOptions with defined initial data.
+ */
+export type DefinedInitialDataEffectQueryOptionsResult<
+  TQueryFnData = unknown,
+  TError = unknown,
+  TData = TQueryFnData,
+  TQueryKey extends QueryKey = QueryKey,
+  R = never,
+> = DefinedInitialDataEffectQueryOptions<TQueryFnData, TError, TData, TQueryKey, R> & {
+  queryKey: DataTag<TQueryKey, TQueryFnData, TError>;
+};
+
+/**
+ * Result type for effectQueryOptions with undefined initial data.
+ */
+export type UndefinedInitialDataEffectQueryOptionsResult<
+  TQueryFnData = unknown,
+  TError = unknown,
+  TData = TQueryFnData,
+  TQueryKey extends QueryKey = QueryKey,
+  R = never,
+> = UndefinedInitialDataEffectQueryOptions<TQueryFnData, TError, TData, TQueryKey, R> & {
+  queryKey: DataTag<TQueryKey, TQueryFnData, TError>;
+};
+
+/**
+ * Result type for effectQueryOptions (general case).
+ */
+export type UseEffectQueryOptionsResult<
+  TQueryFnData = unknown,
+  TError = unknown,
+  TData = TQueryFnData,
+  TQueryKey extends QueryKey = QueryKey,
+  R = never,
+> = UseEffectQueryOptions<TQueryFnData, TError, TData, TQueryKey, R> & {
+  queryKey: DataTag<TQueryKey, TQueryFnData, TError>;
+};
