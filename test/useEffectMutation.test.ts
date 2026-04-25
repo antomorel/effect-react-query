@@ -1,6 +1,9 @@
-import { Cause, Context, Effect, Layer, ManagedRuntime, Match, Schema } from "effect";
-import { describe, expect, it } from "vitest";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { Context, Effect, Layer, ManagedRuntime, Match, Schema } from "effect";
+import { describe, expect, it, vi } from "vitest";
 import type { UseEffectMutationOptions } from "../src";
+import { useEffectMutation } from "../src";
+import { createWrapper } from "./utils";
 
 // Define errors using Schema.TaggedError
 class NetworkError extends Schema.TaggedError<NetworkError>()("NetworkError", {
@@ -14,173 +17,356 @@ class ValidationError extends Schema.TaggedError<ValidationError>()("ValidationE
 // Define a service for testing runtime requirements
 class UserService extends Context.Tag("UserService")<
   UserService,
-  { readonly getUser: (id: string) => Effect.Effect<{ id: string; name: string }, NetworkError> }
+  {
+    readonly createUser: (
+      name: string,
+    ) => Effect.Effect<{ id: string; name: string }, NetworkError>;
+  }
 >() {}
 
-// Type tests - these verify that the types work correctly at compile time
-describe("useEffectMutation types", () => {
-  it("should export useEffectMutation", async () => {
-    const { useEffectMutation } = await import("../src");
-    expect(useEffectMutation).toBeDefined();
-    expect(typeof useEffectMutation).toBe("function");
-  });
-});
+// ============================================================================
+// Hook Behavior Tests
+// ============================================================================
 
-describe("Effect error handling logic", () => {
-  it("should extract failure from Effect exit", async () => {
-    const error = new NetworkError({ message: "Connection failed" });
-    const effect = Effect.fail(error);
-    const exit = await Effect.runPromiseExit(effect);
+describe("useEffectMutation", () => {
+  it("should return success data when Effect succeeds", async () => {
+    const { result } = renderHook(
+      () =>
+        useEffectMutation({
+          mutationFn: (name: string) => Effect.succeed({ id: "1", name }),
+        }),
+      { wrapper: createWrapper() },
+    );
 
-    expect(exit._tag).toBe("Failure");
-    if (exit._tag === "Failure") {
-      const failureOption = Cause.failureOption(exit.cause);
-      expect(failureOption._tag).toBe("Some");
-      if (failureOption._tag === "Some") {
-        expect(failureOption.value).toBeInstanceOf(NetworkError);
-        expect(failureOption.value._tag).toBe("NetworkError");
-        expect(failureOption.value.message).toBe("Connection failed");
-      }
-    }
+    await act(async () => {
+      result.current.mutate("Test User");
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.data).toEqual({ id: "1", name: "Test User" });
   });
 
-  it("should extract defect from Effect exit", async () => {
+  it("should set error when Effect fails", async () => {
+    const { result } = renderHook(
+      () =>
+        useEffectMutation({
+          mutationFn: () => Effect.fail(new NetworkError({ message: "Connection failed" })),
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await act(async () => {
+      result.current.mutate(undefined);
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    // The error should be the typed error, not a Cause wrapper
+    expect(result.current.error).toBeInstanceOf(NetworkError);
+    expect(result.current.error?._tag).toBe("NetworkError");
+    expect((result.current.error as NetworkError)?.message).toBe("Connection failed");
+  });
+
+  it("should call onSuccess callback with data", async () => {
+    const onSuccess = vi.fn();
+
+    const { result } = renderHook(
+      () =>
+        useEffectMutation({
+          mutationFn: (name: string) => Effect.succeed({ id: "1", name }),
+          onSuccess,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await act(async () => {
+      result.current.mutate("Test User");
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+    expect(onSuccess.mock.calls[0][0]).toEqual({ id: "1", name: "Test User" });
+    expect(onSuccess.mock.calls[0][1]).toBe("Test User");
+  });
+
+  it("should call onError callback with typed error (not Cause)", async () => {
+    const onError = vi.fn();
+
+    const { result } = renderHook(
+      () =>
+        useEffectMutation({
+          mutationFn: () => Effect.fail(new NetworkError({ message: "Connection failed" })),
+          onError,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await act(async () => {
+      result.current.mutate(undefined);
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    // This is the key test - onError should receive the typed error, not a Cause
+    expect(onError).toHaveBeenCalledTimes(1);
+    const errorArg = onError.mock.calls[0][0];
+    expect(errorArg).toBeInstanceOf(NetworkError);
+    expect(errorArg._tag).toBe("NetworkError");
+    expect(errorArg.message).toBe("Connection failed");
+  });
+
+  it("should work with Match.valueTags in onError callback", async () => {
+    let matchedError: string | null = null;
+
+    const { result } = renderHook(
+      () =>
+        useEffectMutation({
+          mutationFn: () => Effect.fail(new NetworkError({ message: "Connection lost" })),
+          onError: Match.valueTags({
+            NetworkError: (e) => {
+              matchedError = e.message;
+            },
+          }),
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await act(async () => {
+      result.current.mutate(undefined);
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(matchedError).toBe("Connection lost");
+  });
+
+  it("should handle multiple error types with Match.valueTags", async () => {
+    const results: string[] = [];
+
+    const { result, rerender } = renderHook(
+      () =>
+        useEffectMutation({
+          mutationFn: (type: "network" | "validation") =>
+            Effect.gen(function* () {
+              return yield* type === "network"
+                ? new NetworkError({ message: "Network down" })
+                : new ValidationError({ fields: { email: "Invalid" } });
+            }),
+          onError: Match.valueTags({
+            NetworkError: (e) => results.push(`Network: ${e.message}`),
+            ValidationError: (e) => results.push(`Validation: ${Object.keys(e.fields).join(", ")}`),
+          }),
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    // Test NetworkError
+    await act(async () => {
+      result.current.mutate("network");
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    // Reset and test ValidationError
+    rerender();
+    await act(async () => {
+      result.current.reset();
+    });
+
+    await act(async () => {
+      result.current.mutate("validation");
+    });
+
+    await waitFor(() => {
+      expect(results).toContain("Network: Network down");
+      expect(results).toContain("Validation: email");
+    });
+  });
+
+  it("should handle Effect.die (defects) correctly", async () => {
+    const onError = vi.fn();
     const defect = new Error("Unexpected crash");
-    const effect = Effect.die(defect);
-    const exit = await Effect.runPromiseExit(effect);
 
-    expect(exit._tag).toBe("Failure");
-    if (exit._tag === "Failure") {
-      const dieOption = Cause.dieOption(exit.cause);
-      expect(dieOption._tag).toBe("Some");
-      if (dieOption._tag === "Some") {
-        expect(dieOption.value).toBe(defect);
-      }
-    }
-  });
-
-  it("should detect interruption", async () => {
-    const effect = Effect.interrupt;
-    const exit = await Effect.runPromiseExit(effect);
-
-    expect(exit._tag).toBe("Failure");
-    if (exit._tag === "Failure") {
-      expect(Cause.isInterruptedOnly(exit.cause)).toBe(true);
-    }
-  });
-
-  it("should work with Match.valueTags for error discrimination", () => {
-    const errors: Array<NetworkError | ValidationError> = [
-      new NetworkError({ message: "Connection failed" }),
-      new ValidationError({ fields: { email: "Invalid email" } }),
-    ];
-
-    const results = errors.map((error) =>
-      Match.valueTags(error, {
-        NetworkError: (e) => `Network: ${e.message}`,
-        ValidationError: (e) => `Validation: ${Object.keys(e.fields).join(", ")}`,
-      }),
+    const { result } = renderHook(
+      () =>
+        useEffectMutation({
+          mutationFn: () => Effect.die(defect),
+          onError,
+        }),
+      { wrapper: createWrapper() },
     );
 
-    expect(results[0]).toBe("Network: Connection failed");
-    expect(results[1]).toBe("Validation: email");
+    await act(async () => {
+      result.current.mutate(undefined);
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    // Defects should be thrown as-is
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0][0]).toBe(defect);
   });
 
-  it("should work with Match.type for creating error handlers", () => {
-    const handler = Match.type<NetworkError | ValidationError>().pipe(
-      Match.tag("NetworkError", (e) => `Network: ${e.message}`),
-      Match.tag("ValidationError", (e) => `Validation: ${Object.keys(e.fields).join(", ")}`),
-      Match.exhaustive,
+  it("should handle Effect.interrupt correctly (not call onError)", async () => {
+    const onError = vi.fn();
+    const onSuccess = vi.fn();
+
+    const { result } = renderHook(
+      () =>
+        useEffectMutation({
+          mutationFn: () => Effect.interrupt,
+          onError,
+          onSuccess,
+        }),
+      { wrapper: createWrapper() },
     );
 
-    expect(handler(new NetworkError({ message: "Failed" }))).toBe("Network: Failed");
-    expect(handler(new ValidationError({ fields: { name: "Required" } }))).toBe("Validation: name");
+    await act(async () => {
+      result.current.mutate(undefined);
+    });
+
+    // Wait a bit to ensure callbacks would have been called if they were going to be
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Interruption should NOT call onError or onSuccess - it just hangs
+    expect(onError).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
+
+    // The mutation should still be pending (not error, not success)
+    expect(result.current.isPending).toBe(true);
+    expect(result.current.isError).toBe(false);
+    expect(result.current.isSuccess).toBe(false);
   });
 
-  it("should handle UnknownException in Match", () => {
-    type ErrorType = NetworkError | ValidationError | Cause.UnknownException;
-
-    const handler = Match.type<ErrorType>().pipe(
-      Match.tag("NetworkError", (e) => `Network: ${e.message}`),
-      Match.tag("ValidationError", (e) => `Validation: ${Object.keys(e.fields).join(", ")}`),
-      Match.tag("UnknownException", (e) => `Unknown: ${String(e.error)}`),
-      Match.exhaustive,
+  it("should pass variables to mutationFn", async () => {
+    const mutationFn = vi.fn((data: { name: string; age: number }) =>
+      Effect.succeed({ id: "1", ...data }),
     );
 
-    expect(handler(new NetworkError({ message: "Failed" }))).toBe("Network: Failed");
-    expect(handler(new Cause.UnknownException("crash"))).toBe("Unknown: crash");
+    const { result } = renderHook(() => useEffectMutation({ mutationFn }), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      result.current.mutate({ name: "John", age: 30 });
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(mutationFn).toHaveBeenCalledWith({ name: "John", age: 30 });
   });
 });
 
-describe("Runtime support", () => {
-  it("should run effects with runtime using Runtime.runPromiseExit", async () => {
-    // Create a layer that provides the UserService
+// ============================================================================
+// Runtime Tests
+// ============================================================================
+
+describe("useEffectMutation with runtime", () => {
+  it("should work with ManagedRuntime", async () => {
     const UserServiceLive = Layer.succeed(
       UserService,
       UserService.of({
-        getUser: (id) => Effect.succeed({ id, name: "Test User" }),
-      }),
-    );
-
-    // Create a managed runtime
-    const runtime = ManagedRuntime.make(UserServiceLive);
-
-    // Create an effect that requires UserService
-    const effectWithService = Effect.gen(function* () {
-      const userService = yield* UserService;
-      return yield* userService.getUser("123");
-    });
-
-    // Run with runtime
-    const exit = await runtime.runPromiseExit(effectWithService);
-
-    expect(exit._tag).toBe("Success");
-    if (exit._tag === "Success") {
-      expect(exit.value).toEqual({ id: "123", name: "Test User" });
-    }
-
-    // Cleanup
-    await runtime.dispose();
-  });
-
-  it("should handle failures in effects with runtime", async () => {
-    const UserServiceLive = Layer.succeed(
-      UserService,
-      UserService.of({
-        getUser: () => Effect.fail(new NetworkError({ message: "User not found" })),
+        createUser: (name) => Effect.succeed({ id: "1", name }),
       }),
     );
 
     const runtime = ManagedRuntime.make(UserServiceLive);
 
-    const effectWithService = Effect.gen(function* () {
-      const userService = yield* UserService;
-      return yield* userService.getUser("123");
+    const { result } = renderHook(
+      () =>
+        useEffectMutation({
+          mutationFn: (name: string) =>
+            Effect.gen(function* () {
+              const service = yield* UserService;
+              return yield* service.createUser(name);
+            }),
+          runtime,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await act(async () => {
+      result.current.mutate("Test User");
     });
 
-    const exit = await runtime.runPromiseExit(effectWithService);
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
 
-    expect(exit._tag).toBe("Failure");
-    if (exit._tag === "Failure") {
-      const failureOption = Cause.failureOption(exit.cause);
-      expect(failureOption._tag).toBe("Some");
-      if (failureOption._tag === "Some") {
-        expect(failureOption.value._tag).toBe("NetworkError");
-      }
-    }
+    expect(result.current.data).toEqual({ id: "1", name: "Test User" });
+
+    await runtime.dispose();
+  });
+
+  it("should handle errors from runtime services", async () => {
+    const UserServiceLive = Layer.succeed(
+      UserService,
+      UserService.of({
+        createUser: () => Effect.fail(new NetworkError({ message: "Service unavailable" })),
+      }),
+    );
+
+    const runtime = ManagedRuntime.make(UserServiceLive);
+    const onError = vi.fn();
+
+    const { result } = renderHook(
+      () =>
+        useEffectMutation({
+          mutationFn: (name: string) =>
+            Effect.gen(function* () {
+              const service = yield* UserService;
+              return yield* service.createUser(name);
+            }),
+          runtime,
+          onError,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await act(async () => {
+      result.current.mutate("Test User");
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    const errorArg = onError.mock.calls[0][0];
+    expect(errorArg).toBeInstanceOf(NetworkError);
+    expect(errorArg.message).toBe("Service unavailable");
 
     await runtime.dispose();
   });
 });
 
-describe("Type-level tests for runtime requirement", () => {
+// ============================================================================
+// Type-level Tests (compile-time verification)
+// ============================================================================
+
+describe("useEffectMutation type-level tests", () => {
   it("should compile: effect without requirements, no runtime needed", () => {
-    // This test verifies the types at compile time
-    // If this compiles, the types are correct
     type EffectNoReqs = Effect.Effect<string, NetworkError, never>;
     type Options = UseEffectMutationOptions<string, NetworkError, void, unknown, never>;
 
-    // This should be valid - no runtime needed for Effect<..., never>
     const _options: Options = {
       mutationFn: (): EffectNoReqs => Effect.succeed("test"),
     };
@@ -195,18 +381,17 @@ describe("Type-level tests for runtime requirement", () => {
     const UserServiceLive = Layer.succeed(
       UserService,
       UserService.of({
-        getUser: () => Effect.succeed({ id: "1", name: "Test" }),
+        createUser: () => Effect.succeed({ id: "1", name: "Test" }),
       }),
     );
 
     const runtime = ManagedRuntime.make(UserServiceLive);
 
-    // This should be valid - runtime is provided for Effect<..., UserService>
     const _options: Options = {
       mutationFn: (): EffectWithReqs =>
         Effect.gen(function* () {
           const service = yield* UserService;
-          const user = yield* service.getUser("1");
+          const user = yield* service.createUser("Test");
           return user.name;
         }),
       runtime: runtime,

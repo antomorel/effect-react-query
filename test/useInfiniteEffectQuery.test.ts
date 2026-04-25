@@ -1,16 +1,23 @@
 import type { InfiniteData } from "@tanstack/react-query";
-import { Context, Effect, Layer, ManagedRuntime, Schema } from "effect";
-import { describe, expect, it } from "vitest";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { Context, Effect, Layer, ManagedRuntime, Match, Schema } from "effect";
+import { describe, expect, it, vi } from "vitest";
 import type {
   DefinedInitialDataInfiniteEffectQueryOptions,
   DefinedUseInfiniteEffectQueryResult,
   UseInfiniteEffectQueryOptions,
   UseInfiniteEffectQueryResult,
 } from "../src";
+import { useInfiniteEffectQuery } from "../src";
+import { createWrapper } from "./utils";
 
 // Define errors using Schema.TaggedError
 class NetworkError extends Schema.TaggedError<NetworkError>()("NetworkError", {
   message: Schema.String,
+}) {}
+
+class NotFoundError extends Schema.TaggedError<NotFoundError>()("NotFoundError", {
+  resourceId: Schema.String,
 }) {}
 
 // Define a page type for testing
@@ -25,15 +32,336 @@ class PostService extends Context.Tag("PostService")<
   { readonly getPosts: (cursor: number) => Effect.Effect<PostsPage, NetworkError> }
 >() {}
 
-describe("useInfiniteEffectQuery types", () => {
-  it("should export useInfiniteEffectQuery", async () => {
-    const { useInfiniteEffectQuery } = await import("../src");
-    expect(useInfiniteEffectQuery).toBeDefined();
-    expect(typeof useInfiniteEffectQuery).toBe("function");
+// ============================================================================
+// Hook Behavior Tests
+// ============================================================================
+
+describe("useInfiniteEffectQuery", () => {
+  it("should return success data when Effect succeeds", async () => {
+    const { result } = renderHook(
+      () =>
+        useInfiniteEffectQuery({
+          queryKey: ["posts", "success"],
+          queryFn: ({ pageParam }) =>
+            Effect.succeed({
+              items: [{ id: "1", title: `Post at ${pageParam}` }],
+              nextCursor: pageParam < 2 ? pageParam + 1 : null,
+            }),
+          initialPageParam: 0,
+          getNextPageParam: (lastPage) => lastPage.nextCursor,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.data?.pages).toHaveLength(1);
+    expect(result.current.data?.pages[0].items[0].title).toBe("Post at 0");
+  });
+
+  it("should fetch next page when fetchNextPage is called", async () => {
+    const { result } = renderHook(
+      () =>
+        useInfiniteEffectQuery({
+          queryKey: ["posts", "pagination"],
+          queryFn: ({ pageParam }) =>
+            Effect.succeed({
+              items: [{ id: String(pageParam), title: `Page ${pageParam}` }],
+              nextCursor: pageParam < 2 ? pageParam + 1 : null,
+            }),
+          initialPageParam: 0,
+          getNextPageParam: (lastPage) => lastPage.nextCursor,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.hasNextPage).toBe(true);
+    expect(result.current.data?.pages).toHaveLength(1);
+
+    // Call fetchNextPage and wait for the fetch to complete
+    act(() => {
+      result.current.fetchNextPage();
+    });
+
+    // Wait for isFetchingNextPage to become true then false
+    await waitFor(() => {
+      expect(result.current.isFetchingNextPage).toBe(false);
+      expect(result.current.data?.pages).toHaveLength(2);
+    });
+
+    expect(result.current.data?.pages[1].items[0].title).toBe("Page 1");
+  });
+
+  it("should set error when Effect fails", async () => {
+    const { result } = renderHook(
+      () =>
+        useInfiniteEffectQuery({
+          queryKey: ["posts", "fail"],
+          queryFn: () => Effect.fail(new NetworkError({ message: "Connection failed" })),
+          initialPageParam: 0,
+          getNextPageParam: () => null,
+          retry: false,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    // The error should be the typed error, not a Cause wrapper
+    expect(result.current.error).toBeInstanceOf(NetworkError);
+    expect(result.current.error?._tag).toBe("NetworkError");
+    expect((result.current.error as NetworkError)?.message).toBe("Connection failed");
+  });
+
+  it("should work with Match.valueTags for error discrimination", async () => {
+    const { result } = renderHook(
+      () =>
+        useInfiniteEffectQuery({
+          queryKey: ["posts", "error-match"],
+          queryFn: () => Effect.fail(new NetworkError({ message: "Timeout" })),
+          initialPageParam: 0,
+          getNextPageParam: () => null,
+          retry: false,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    const matchResult = Match.valueTags(result.current.error!, {
+      NetworkError: (e) => `Network: ${e.message}`,
+    });
+
+    expect(matchResult).toBe("Network: Timeout");
+  });
+
+  it("should pass pageParam and queryKey in context to queryFn", async () => {
+    const queryFn = vi.fn((context: { pageParam: number; queryKey: readonly ["posts", string] }) =>
+      Effect.succeed({
+        items: [{ id: "1", title: `Page ${context.pageParam}` }],
+        nextCursor: context.pageParam < 2 ? context.pageParam + 1 : null,
+      }),
+    );
+
+    const { result } = renderHook(
+      () =>
+        useInfiniteEffectQuery({
+          queryKey: ["posts", "context-test"] as const,
+          queryFn,
+          initialPageParam: 0,
+          getNextPageParam: (lastPage) => lastPage.nextCursor,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(queryFn).toHaveBeenCalled();
+    const callArg = queryFn.mock.calls[0][0];
+    expect(callArg.pageParam).toBe(0);
+    expect(callArg.queryKey).toEqual(["posts", "context-test"]);
+  });
+
+  it("should handle interruption via AbortSignal", async () => {
+    let wasInterrupted = false;
+    let effectStarted = false;
+
+    const { unmount } = renderHook(
+      () =>
+        useInfiniteEffectQuery({
+          queryKey: ["posts", "interrupted"],
+          queryFn: () =>
+            Effect.gen(function* () {
+              effectStarted = true;
+              yield* Effect.sleep("10 seconds");
+              return { items: [], nextCursor: null };
+            }).pipe(
+              Effect.onInterrupt(() =>
+                Effect.sync(() => {
+                  wasInterrupted = true;
+                }),
+              ),
+            ),
+          initialPageParam: 0,
+          getNextPageParam: () => null,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(effectStarted).toBe(true);
+    });
+
+    unmount();
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(wasInterrupted).toBe(true);
+  });
+
+  it("should handle hasNextPage correctly", async () => {
+    const { result } = renderHook(
+      () =>
+        useInfiniteEffectQuery({
+          queryKey: ["posts", "has-next"],
+          queryFn: ({ pageParam }) =>
+            Effect.succeed({
+              items: [{ id: String(pageParam), title: `Page ${pageParam}` }],
+              nextCursor: pageParam === 0 ? 1 : null, // Only first page has next
+            }),
+          initialPageParam: 0,
+          getNextPageParam: (lastPage) => lastPage.nextCursor,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.hasNextPage).toBe(true);
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+
+    await waitFor(() => {
+      expect(result.current.data?.pages).toHaveLength(2);
+    });
+
+    expect(result.current.hasNextPage).toBe(false);
   });
 });
 
-describe("Type-level tests for runtime requirement (infinite query)", () => {
+// ============================================================================
+// Initial Data Tests
+// ============================================================================
+
+describe("useInfiniteEffectQuery with initial data", () => {
+  it("should have defined data immediately with initialData", async () => {
+    const { result } = renderHook(
+      () =>
+        useInfiniteEffectQuery({
+          queryKey: ["posts", "initial"],
+          queryFn: ({ pageParam }) =>
+            Effect.succeed({
+              items: [{ id: "fetched", title: `Fetched Page ${pageParam}` }],
+              nextCursor: null,
+            }),
+          initialPageParam: 0,
+          getNextPageParam: (lastPage) => lastPage.nextCursor,
+          initialData: {
+            pages: [{ items: [{ id: "initial", title: "Initial Post" }], nextCursor: null }],
+            pageParams: [0],
+          },
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    // Data should be immediately available
+    expect(result.current.data?.pages[0].items[0].title).toBe("Initial Post");
+  });
+});
+
+// ============================================================================
+// Runtime Tests
+// ============================================================================
+
+describe("useInfiniteEffectQuery with runtime", () => {
+  it("should work with ManagedRuntime", async () => {
+    const PostServiceLive = Layer.succeed(
+      PostService,
+      PostService.of({
+        getPosts: (cursor) =>
+          Effect.succeed({
+            items: [{ id: String(cursor), title: `Service Page ${cursor}` }],
+            nextCursor: cursor < 1 ? cursor + 1 : null,
+          }),
+      }),
+    );
+
+    const runtime = ManagedRuntime.make(PostServiceLive);
+
+    const { result } = renderHook(
+      () =>
+        useInfiniteEffectQuery({
+          queryKey: ["posts", "runtime"],
+          queryFn: ({ pageParam }) =>
+            Effect.gen(function* () {
+              const service = yield* PostService;
+              return yield* service.getPosts(pageParam);
+            }),
+          runtime,
+          initialPageParam: 0,
+          getNextPageParam: (lastPage) => lastPage.nextCursor,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.data?.pages[0].items[0].title).toBe("Service Page 0");
+
+    await runtime.dispose();
+  });
+
+  it("should handle errors from runtime services", async () => {
+    const PostServiceLive = Layer.succeed(
+      PostService,
+      PostService.of({
+        getPosts: () => Effect.fail(new NetworkError({ message: "Service unavailable" })),
+      }),
+    );
+
+    const runtime = ManagedRuntime.make(PostServiceLive);
+
+    const { result } = renderHook(
+      () =>
+        useInfiniteEffectQuery({
+          queryKey: ["posts", "runtime-error"],
+          queryFn: ({ pageParam }) =>
+            Effect.gen(function* () {
+              const service = yield* PostService;
+              return yield* service.getPosts(pageParam);
+            }),
+          runtime,
+          initialPageParam: 0,
+          getNextPageParam: () => null,
+          retry: false,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(result.current.error).toBeInstanceOf(NetworkError);
+    expect((result.current.error as NetworkError).message).toBe("Service unavailable");
+
+    await runtime.dispose();
+  });
+});
+
+// ============================================================================
+// Type-level Tests (compile-time verification)
+// ============================================================================
+
+describe("useInfiniteEffectQuery type-level tests", () => {
   it("should compile: effect without requirements, no runtime needed", () => {
     type Options = UseInfiniteEffectQueryOptions<
       PostsPage,
@@ -56,7 +384,6 @@ describe("Type-level tests for runtime requirement (infinite query)", () => {
     };
 
     expect(_options).toBeDefined();
-    expect(_options.initialPageParam).toBe(0);
   });
 
   it("should compile: effect with requirements, runtime required", () => {
@@ -95,31 +422,17 @@ describe("Type-level tests for runtime requirement (infinite query)", () => {
     };
 
     expect(_options).toBeDefined();
-    expect(_options.runtime).toBe(runtime);
   });
-});
 
-describe("Infinite query result types", () => {
   it("should have correct result type structure", () => {
     type Result = UseInfiniteEffectQueryResult<InfiniteData<PostsPage>, NetworkError>;
 
     const checkResultType = (result: Result) => {
-      // Infinite query results should have these properties
       const _hasNextPage: boolean | undefined = result.hasNextPage;
       const _hasPreviousPage: boolean | undefined = result.hasPreviousPage;
-      const _fetchNextPage: () => void = () => result.fetchNextPage();
-      const _fetchPreviousPage: () => void = () => result.fetchPreviousPage();
       const _isFetchingNextPage: boolean = result.isFetchingNextPage;
       const _isFetchingPreviousPage: boolean = result.isFetchingPreviousPage;
-
-      return {
-        _hasNextPage,
-        _hasPreviousPage,
-        _fetchNextPage,
-        _fetchPreviousPage,
-        _isFetchingNextPage,
-        _isFetchingPreviousPage,
-      };
+      return { _hasNextPage, _hasPreviousPage, _isFetchingNextPage, _isFetchingPreviousPage };
     };
 
     expect(checkResultType).toBeDefined();
@@ -129,16 +442,13 @@ describe("Infinite query result types", () => {
     type Result = DefinedUseInfiniteEffectQueryResult<InfiniteData<PostsPage>, NetworkError>;
 
     const checkDataType = (result: Result) => {
-      // With defined initial data, data should not be undefined
       const _data: InfiniteData<PostsPage> = result.data;
       return _data;
     };
 
     expect(checkDataType).toBeDefined();
   });
-});
 
-describe("Infinite query with defined initial data", () => {
   it("should compile: with defined initial data", () => {
     type Options = DefinedInitialDataInfiniteEffectQueryOptions<
       PostsPage,
@@ -165,37 +475,5 @@ describe("Infinite query with defined initial data", () => {
     };
 
     expect(_options.initialData).toBeDefined();
-    expect(_options.initialData.pages).toHaveLength(1);
-  });
-});
-
-describe("QueryFunctionContext access (infinite query)", () => {
-  it("should provide pageParam in context", () => {
-    type Options = UseInfiniteEffectQueryOptions<
-      PostsPage,
-      NetworkError,
-      InfiniteData<PostsPage>,
-      readonly ["posts", string],
-      number,
-      never
-    >;
-
-    const _options: Options = {
-      queryKey: ["posts", "category-1"] as const,
-      queryFn: (context) => {
-        // Verify context has pageParam and queryKey
-        const pageParam: number = context.pageParam;
-        const [_resource, category] = context.queryKey;
-        expect(category).toBe("category-1");
-        return Effect.succeed({
-          items: [{ id: "1", title: `Post at page ${pageParam}` }],
-          nextCursor: pageParam + 1,
-        });
-      },
-      initialPageParam: 0,
-      getNextPageParam: (lastPage) => lastPage.nextCursor,
-    };
-
-    expect(_options).toBeDefined();
   });
 });

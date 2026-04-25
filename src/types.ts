@@ -2,6 +2,8 @@ import type {
   DataTag,
   DefinedUseInfiniteQueryResult,
   DefinedUseQueryResult,
+  GetNextPageParamFunction,
+  GetPreviousPageParamFunction,
   InfiniteData,
   InitialDataFunction,
   NonUndefinedGuard,
@@ -217,7 +219,10 @@ export type UseInfiniteEffectQueryOptions<
   TQueryKey extends QueryKey = QueryKey,
   TPageParam = unknown,
   R = never,
-> = Omit<UseInfiniteQueryOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam>, "queryFn"> & {
+> = Omit<
+  UseInfiniteQueryOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam>,
+  "queryFn" | "getNextPageParam" | "getPreviousPageParam"
+> & {
   /**
    * The query function that returns an Effect.
    * Receives the same QueryFunctionContext as standard useInfiniteQuery,
@@ -226,11 +231,24 @@ export type UseInfiniteEffectQueryOptions<
   queryFn: (
     context: QueryFunctionContext<TQueryKey, TPageParam>,
   ) => Effect.Effect<TQueryFnData, TError, R>;
+  /**
+   * Function to get the next page parameter.
+   * Uses NoInfer to ensure TQueryFnData is inferred from queryFn, not from this callback.
+   */
+  getNextPageParam: GetNextPageParamFunction<TPageParam, NoInfer<TQueryFnData>>;
+  /**
+   * Optional function to get the previous page parameter.
+   * Uses NoInfer to ensure TQueryFnData is inferred from queryFn, not from this callback.
+   */
+  getPreviousPageParam?: GetPreviousPageParamFunction<TPageParam, NoInfer<TQueryFnData>>;
 } & RuntimeOption<R>;
 
 /**
  * Options for useInfiniteEffectQuery with defined initial data.
  * When initialData is provided, the result data is guaranteed to be defined.
+ *
+ * Note: This type is flattened (not using Omit on UseInfiniteEffectQueryOptions)
+ * to enable proper TypeScript inference for TQueryFnData from queryFn.
  */
 export type DefinedInitialDataInfiniteEffectQueryOptions<
   TQueryFnData = unknown,
@@ -240,16 +258,24 @@ export type DefinedInitialDataInfiniteEffectQueryOptions<
   TPageParam = unknown,
   R = never,
 > = Omit<
-  UseInfiniteEffectQueryOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam, R>,
-  "initialData"
+  UseInfiniteQueryOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam>,
+  "queryFn" | "getNextPageParam" | "getPreviousPageParam" | "initialData"
 > & {
+  queryFn: (
+    context: QueryFunctionContext<TQueryKey, TPageParam>,
+  ) => Effect.Effect<TQueryFnData, TError, R>;
+  getNextPageParam: GetNextPageParamFunction<TPageParam, NoInfer<TQueryFnData>>;
+  getPreviousPageParam?: GetPreviousPageParamFunction<TPageParam, NoInfer<TQueryFnData>>;
   initialData:
     | NonUndefinedGuard<InfiniteData<TQueryFnData, TPageParam>>
     | (() => NonUndefinedGuard<InfiniteData<TQueryFnData, TPageParam>>);
-};
+} & RuntimeOption<R>;
 
 /**
  * Options for useInfiniteEffectQuery with undefined initial data.
+ *
+ * Note: This type is flattened (not using Omit on UseInfiniteEffectQueryOptions)
+ * to enable proper TypeScript inference for TQueryFnData from queryFn.
  */
 export type UndefinedInitialDataInfiniteEffectQueryOptions<
   TQueryFnData = unknown,
@@ -259,14 +285,19 @@ export type UndefinedInitialDataInfiniteEffectQueryOptions<
   TPageParam = unknown,
   R = never,
 > = Omit<
-  UseInfiniteEffectQueryOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam, R>,
-  "initialData"
+  UseInfiniteQueryOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam>,
+  "queryFn" | "getNextPageParam" | "getPreviousPageParam" | "initialData"
 > & {
+  queryFn: (
+    context: QueryFunctionContext<TQueryKey, TPageParam>,
+  ) => Effect.Effect<TQueryFnData, TError, R>;
+  getNextPageParam: GetNextPageParamFunction<TPageParam, NoInfer<TQueryFnData>>;
+  getPreviousPageParam?: GetPreviousPageParamFunction<TPageParam, NoInfer<TQueryFnData>>;
   initialData?:
     | undefined
     | InitialDataFunction<NonUndefinedGuard<InfiniteData<TQueryFnData, TPageParam>>>
     | NonUndefinedGuard<InfiniteData<TQueryFnData, TPageParam>>;
-};
+} & RuntimeOption<R>;
 
 /**
  * The result of useInfiniteEffectQuery hook.
@@ -365,7 +396,7 @@ export type UseInfiniteEffectSuspenseQueryOptions<
   R = never,
 > = Omit<
   UseSuspenseInfiniteQueryOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam>,
-  "queryFn"
+  "queryFn" | "getNextPageParam" | "getPreviousPageParam"
 > & {
   /**
    * The query function that returns an Effect.
@@ -375,6 +406,16 @@ export type UseInfiniteEffectSuspenseQueryOptions<
   queryFn: (
     context: QueryFunctionContext<TQueryKey, TPageParam>,
   ) => Effect.Effect<TQueryFnData, TError, R>;
+  /**
+   * Function to get the next page parameter.
+   * Uses NoInfer to ensure TQueryFnData is inferred from queryFn, not from this callback.
+   */
+  getNextPageParam: GetNextPageParamFunction<TPageParam, NoInfer<TQueryFnData>>;
+  /**
+   * Optional function to get the previous page parameter.
+   * Uses NoInfer to ensure TQueryFnData is inferred from queryFn, not from this callback.
+   */
+  getPreviousPageParam?: GetPreviousPageParamFunction<TPageParam, NoInfer<TQueryFnData>>;
 } & RuntimeOption<R>;
 
 /**

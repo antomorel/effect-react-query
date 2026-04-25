@@ -1,5 +1,5 @@
 import { Effect, Match } from "effect";
-import { useEffectMutation } from "../../src";
+import { useEffectMutation, useInfiniteEffectQuery } from "../../src";
 import { apiClient } from "./client";
 
 export function App() {
@@ -12,7 +12,7 @@ export function App() {
       ParseError: (e) => console.error("Parse error:", e.message),
       RequestError: (e) => console.error("Request error:", e.message),
       ResponseError: (e) => console.error("Response error:", e.message),
-      BadRequest: (e) => console.error("HttpApiError"),
+      BadRequest: () => console.error("BadRequest"),
     }),
   });
 

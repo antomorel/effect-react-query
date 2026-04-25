@@ -1,10 +1,13 @@
 import type { InfiniteData } from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { Context, Effect, Layer, ManagedRuntime, Schema } from "effect";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   UseInfiniteEffectSuspenseQueryOptions,
   UseInfiniteEffectSuspenseQueryResult,
 } from "../src";
+import { useInfiniteEffectSuspenseQuery } from "../src";
+import { createSuspenseWrapper } from "./utils";
 
 // Define errors using Schema.TaggedError
 class NetworkError extends Schema.TaggedError<NetworkError>()("NetworkError", {
@@ -23,15 +26,178 @@ class PostService extends Context.Tag("PostService")<
   { readonly getPosts: (cursor: number) => Effect.Effect<PostsPage, NetworkError> }
 >() {}
 
-describe("useInfiniteEffectSuspenseQuery types", () => {
-  it("should export useInfiniteEffectSuspenseQuery", async () => {
-    const { useInfiniteEffectSuspenseQuery } = await import("../src");
-    expect(useInfiniteEffectSuspenseQuery).toBeDefined();
-    expect(typeof useInfiniteEffectSuspenseQuery).toBe("function");
+// ============================================================================
+// Hook Behavior Tests
+// ============================================================================
+
+describe("useInfiniteEffectSuspenseQuery", () => {
+  it("should return success data when Effect succeeds", async () => {
+    const { result } = renderHook(
+      () =>
+        useInfiniteEffectSuspenseQuery({
+          queryKey: ["suspense-posts", "success"],
+          queryFn: ({ pageParam }) =>
+            Effect.succeed({
+              items: [{ id: "1", title: `Post at ${pageParam}` }],
+              nextCursor: pageParam < 2 ? pageParam + 1 : null,
+            }),
+          initialPageParam: 0,
+          getNextPageParam: (lastPage) => lastPage.nextCursor,
+        }),
+      { wrapper: createSuspenseWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    // In suspense queries, data is always defined
+    expect(result.current.data.pages).toHaveLength(1);
+    expect(result.current.data.pages[0].items[0].title).toBe("Post at 0");
+  });
+
+  it("should have data always defined (not undefined)", async () => {
+    const { result } = renderHook(
+      () =>
+        useInfiniteEffectSuspenseQuery({
+          queryKey: ["suspense-posts", "defined"],
+          queryFn: () =>
+            Effect.succeed({
+              items: [{ id: "1", title: "Post" }],
+              nextCursor: null,
+            }),
+          initialPageParam: 0,
+          getNextPageParam: () => null,
+        }),
+      { wrapper: createSuspenseWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    // Type assertion to verify data is not undefined
+    const data: InfiniteData<PostsPage> = result.current.data;
+    expect(data).toBeDefined();
+    expect(data.pages).toHaveLength(1);
+  });
+
+  it("should fetch next page when fetchNextPage is called", async () => {
+    const { result } = renderHook(
+      () =>
+        useInfiniteEffectSuspenseQuery({
+          queryKey: ["suspense-posts", "pagination"],
+          queryFn: ({ pageParam }) =>
+            Effect.succeed({
+              items: [{ id: String(pageParam), title: `Page ${pageParam}` }],
+              nextCursor: pageParam < 2 ? pageParam + 1 : null,
+            }),
+          initialPageParam: 0,
+          getNextPageParam: (lastPage) => lastPage.nextCursor,
+        }),
+      { wrapper: createSuspenseWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.hasNextPage).toBe(true);
+    expect(result.current.data.pages).toHaveLength(1);
+
+    act(() => {
+      result.current.fetchNextPage();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isFetchingNextPage).toBe(false);
+      expect(result.current.data.pages).toHaveLength(2);
+    });
+
+    expect(result.current.data.pages[1].items[0].title).toBe("Page 1");
+  });
+
+  it("should pass pageParam and queryKey in context to queryFn", async () => {
+    const queryFn = vi.fn(
+      (context: { pageParam: number; queryKey: readonly ["suspense-posts", string] }) =>
+        Effect.succeed({
+          items: [{ id: "1", title: `Page ${context.pageParam}` }],
+          nextCursor: null,
+        }),
+    );
+
+    const { result } = renderHook(
+      () =>
+        useInfiniteEffectSuspenseQuery({
+          queryKey: ["suspense-posts", "context-test"] as const,
+          queryFn,
+          initialPageParam: 0,
+          getNextPageParam: () => null,
+        }),
+      { wrapper: createSuspenseWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(queryFn).toHaveBeenCalled();
+    const callArg = queryFn.mock.calls[0][0];
+    expect(callArg.pageParam).toBe(0);
+    expect(callArg.queryKey).toEqual(["suspense-posts", "context-test"]);
   });
 });
 
-describe("Type-level tests for runtime requirement (infinite suspense query)", () => {
+// ============================================================================
+// Runtime Tests
+// ============================================================================
+
+describe("useInfiniteEffectSuspenseQuery with runtime", () => {
+  it("should work with ManagedRuntime", async () => {
+    const PostServiceLive = Layer.succeed(
+      PostService,
+      PostService.of({
+        getPosts: (cursor) =>
+          Effect.succeed({
+            items: [{ id: String(cursor), title: `Service Page ${cursor}` }],
+            nextCursor: null,
+          }),
+      }),
+    );
+
+    const runtime = ManagedRuntime.make(PostServiceLive);
+
+    const { result } = renderHook(
+      () =>
+        useInfiniteEffectSuspenseQuery({
+          queryKey: ["suspense-posts", "runtime"],
+          queryFn: ({ pageParam }) =>
+            Effect.gen(function* () {
+              const service = yield* PostService;
+              return yield* service.getPosts(pageParam);
+            }),
+          runtime,
+          initialPageParam: 0,
+          getNextPageParam: () => null,
+        }),
+      { wrapper: createSuspenseWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.data.pages[0].items[0].title).toBe("Service Page 0");
+
+    await runtime.dispose();
+  });
+});
+
+// ============================================================================
+// Type-level Tests (compile-time verification)
+// ============================================================================
+
+describe("useInfiniteEffectSuspenseQuery type-level tests", () => {
   it("should compile: effect without requirements, no runtime needed", () => {
     type Options = UseInfiniteEffectSuspenseQueryOptions<
       PostsPage,
@@ -54,7 +220,6 @@ describe("Type-level tests for runtime requirement (infinite suspense query)", (
     };
 
     expect(_options).toBeDefined();
-    expect(_options.initialPageParam).toBe(0);
   });
 
   it("should compile: effect with requirements, runtime required", () => {
@@ -93,41 +258,21 @@ describe("Type-level tests for runtime requirement (infinite suspense query)", (
     };
 
     expect(_options).toBeDefined();
-    expect(_options.runtime).toBe(runtime);
   });
-});
 
-describe("Infinite suspense query result types", () => {
   it("should have data always defined in result type", () => {
     type Result = UseInfiniteEffectSuspenseQueryResult<InfiniteData<PostsPage>, NetworkError>;
 
     const checkDataType = (result: Result) => {
-      // With suspense, data is always defined
       const _data: InfiniteData<PostsPage> = result.data;
-      // Infinite query results should have these properties
       const _hasNextPage: boolean = result.hasNextPage;
       const _hasPreviousPage: boolean = result.hasPreviousPage;
-      const _fetchNextPage: () => void = () => result.fetchNextPage();
-      const _fetchPreviousPage: () => void = () => result.fetchPreviousPage();
-      const _isFetchingNextPage: boolean = result.isFetchingNextPage;
-      const _isFetchingPreviousPage: boolean = result.isFetchingPreviousPage;
-
-      return {
-        _data,
-        _hasNextPage,
-        _hasPreviousPage,
-        _fetchNextPage,
-        _fetchPreviousPage,
-        _isFetchingNextPage,
-        _isFetchingPreviousPage,
-      };
+      return { _data, _hasNextPage, _hasPreviousPage };
     };
 
     expect(checkDataType).toBeDefined();
   });
-});
 
-describe("Suspense infinite query options should not have disabled options", () => {
   it("should not allow enabled option", () => {
     type Options = UseInfiniteEffectSuspenseQueryOptions<
       PostsPage,
@@ -138,23 +283,9 @@ describe("Suspense infinite query options should not have disabled options", () 
       never
     >;
 
-    const _options: Options = {
-      queryKey: ["posts"] as const,
-      queryFn: ({ pageParam }) =>
-        Effect.succeed({
-          items: [{ id: "1", title: `Post at ${pageParam}` }],
-          nextCursor: pageParam + 1,
-        }),
-      initialPageParam: 0,
-      getNextPageParam: (lastPage) => lastPage.nextCursor,
-      // enabled: true, // This should cause a type error if uncommented
-    };
-
-    // Verify that 'enabled' is not in the options type
     type HasEnabled = "enabled" extends keyof Options ? true : false;
     const _hasEnabled: HasEnabled = false;
 
-    expect(_options).toBeDefined();
     expect(_hasEnabled).toBe(false);
   });
 
@@ -168,7 +299,6 @@ describe("Suspense infinite query options should not have disabled options", () 
       never
     >;
 
-    // Verify that 'throwOnError' is not in the options type
     type HasThrowOnError = "throwOnError" extends keyof Options ? true : false;
     const _hasThrowOnError: HasThrowOnError = false;
 
@@ -185,41 +315,9 @@ describe("Suspense infinite query options should not have disabled options", () 
       never
     >;
 
-    // Verify that 'placeholderData' is not in the options type
     type HasPlaceholderData = "placeholderData" extends keyof Options ? true : false;
     const _hasPlaceholderData: HasPlaceholderData = false;
 
     expect(_hasPlaceholderData).toBe(false);
-  });
-});
-
-describe("QueryFunctionContext access (infinite suspense query)", () => {
-  it("should provide pageParam and queryKey in context", () => {
-    type Options = UseInfiniteEffectSuspenseQueryOptions<
-      PostsPage,
-      NetworkError,
-      InfiniteData<PostsPage>,
-      readonly ["posts", string],
-      number,
-      never
-    >;
-
-    const _options: Options = {
-      queryKey: ["posts", "category-1"] as const,
-      queryFn: (context) => {
-        // Verify context has pageParam and queryKey
-        const pageParam: number = context.pageParam;
-        const [_resource, category] = context.queryKey;
-        expect(category).toBe("category-1");
-        return Effect.succeed({
-          items: [{ id: "1", title: `Post at page ${pageParam}` }],
-          nextCursor: pageParam + 1,
-        });
-      },
-      initialPageParam: 0,
-      getNextPageParam: (lastPage) => lastPage.nextCursor,
-    };
-
-    expect(_options).toBeDefined();
   });
 });

@@ -1,12 +1,15 @@
-import { Cause, Context, Effect, Layer, ManagedRuntime, Match, Schema } from "effect";
-import { describe, expect, it } from "vitest";
+import { renderHook, waitFor } from "@testing-library/react";
+import { Context, Effect, Layer, ManagedRuntime, Match, Schema } from "effect";
+import { describe, expect, it, vi } from "vitest";
 import type {
-  UseEffectQueryOptions,
   DefinedInitialDataEffectQueryOptions,
-  UndefinedInitialDataEffectQueryOptions,
-  UseEffectQueryResult,
   DefinedUseEffectQueryResult,
+  UndefinedInitialDataEffectQueryOptions,
+  UseEffectQueryOptions,
+  UseEffectQueryResult,
 } from "../src";
+import { useEffectQuery } from "../src";
+import { createWrapper } from "./utils";
 
 // Define errors using Schema.TaggedError
 class NetworkError extends Schema.TaggedError<NetworkError>()("NetworkError", {
@@ -23,173 +26,290 @@ class UserService extends Context.Tag("UserService")<
   { readonly getUser: (id: string) => Effect.Effect<{ id: string; name: string }, NetworkError> }
 >() {}
 
-// Type tests - these verify that the types work correctly at compile time
-describe("useEffectQuery types", () => {
-  it("should export useEffectQuery", async () => {
-    const { useEffectQuery } = await import("../src");
-    expect(useEffectQuery).toBeDefined();
-    expect(typeof useEffectQuery).toBe("function");
-  });
-});
+// ============================================================================
+// Hook Behavior Tests
+// ============================================================================
 
-describe("Effect error handling logic for queries", () => {
-  it("should extract failure from Effect exit", async () => {
-    const error = new NetworkError({ message: "Connection failed" });
-    const effect = Effect.fail(error);
-    const exit = await Effect.runPromiseExit(effect);
-
-    expect(exit._tag).toBe("Failure");
-    if (exit._tag === "Failure") {
-      const failureOption = Cause.failureOption(exit.cause);
-      expect(failureOption._tag).toBe("Some");
-      if (failureOption._tag === "Some") {
-        expect(failureOption.value).toBeInstanceOf(NetworkError);
-        expect(failureOption.value._tag).toBe("NetworkError");
-        expect(failureOption.value.message).toBe("Connection failed");
-      }
-    }
-  });
-
-  it("should work with Match.valueTags for error discrimination in queries", () => {
-    const errors: Array<NetworkError | NotFoundError> = [
-      new NetworkError({ message: "Connection failed" }),
-      new NotFoundError({ resourceId: "user-123" }),
-    ];
-
-    const results = errors.map((error) =>
-      Match.valueTags(error, {
-        NetworkError: (e) => `Network: ${e.message}`,
-        NotFoundError: (e) => `NotFound: ${e.resourceId}`,
-      }),
-    );
-
-    expect(results[0]).toBe("Network: Connection failed");
-    expect(results[1]).toBe("NotFound: user-123");
-  });
-
-  it("should detect interruption for query cancellation", async () => {
-    const effect = Effect.interrupt;
-    const exit = await Effect.runPromiseExit(effect);
-
-    expect(exit._tag).toBe("Failure");
-    if (exit._tag === "Failure") {
-      expect(Cause.isInterruptedOnly(exit.cause)).toBe(true);
-    }
-  });
-});
-
-describe("Runtime support for queries", () => {
-  it("should run effects with runtime using Runtime.runPromiseExit", async () => {
-    // Create a layer that provides the UserService
-    const UserServiceLive = Layer.succeed(
-      UserService,
-      UserService.of({
-        getUser: (id) => Effect.succeed({ id, name: "Test User" }),
-      }),
-    );
-
-    // Create a managed runtime
-    const runtime = ManagedRuntime.make(UserServiceLive);
-
-    // Create an effect that requires UserService
-    const effectWithService = Effect.gen(function* () {
-      const userService = yield* UserService;
-      return yield* userService.getUser("123");
-    });
-
-    // Run with runtime
-    const exit = await runtime.runPromiseExit(effectWithService);
-
-    expect(exit._tag).toBe("Success");
-    if (exit._tag === "Success") {
-      expect(exit.value).toEqual({ id: "123", name: "Test User" });
-    }
-
-    // Cleanup
-    await runtime.dispose();
-  });
-
-  it("should handle failures in effects with runtime", async () => {
-    const UserServiceLive = Layer.succeed(
-      UserService,
-      UserService.of({
-        getUser: () => Effect.fail(new NetworkError({ message: "User not found" })),
-      }),
-    );
-
-    const runtime = ManagedRuntime.make(UserServiceLive);
-
-    const effectWithService = Effect.gen(function* () {
-      const userService = yield* UserService;
-      return yield* userService.getUser("123");
-    });
-
-    const exit = await runtime.runPromiseExit(effectWithService);
-
-    expect(exit._tag).toBe("Failure");
-    if (exit._tag === "Failure") {
-      const failureOption = Cause.failureOption(exit.cause);
-      expect(failureOption._tag).toBe("Some");
-      if (failureOption._tag === "Some") {
-        expect(failureOption.value._tag).toBe("NetworkError");
-      }
-    }
-
-    await runtime.dispose();
-  });
-});
-
-describe("AbortSignal handling", () => {
-  it("should interrupt effect when abort signal is triggered", async () => {
-    const controller = new AbortController();
-    let wasInterrupted = false;
-
-    const effect = Effect.gen(function* () {
-      // Simulate a long-running operation
-      yield* Effect.sleep("1 second");
-      return "completed";
-    }).pipe(
-      Effect.onInterrupt(() =>
-        Effect.sync(() => {
-          wasInterrupted = true;
+describe("useEffectQuery", () => {
+  it("should return success data when Effect succeeds", async () => {
+    const { result } = renderHook(
+      () =>
+        useEffectQuery({
+          queryKey: ["user", "1"],
+          queryFn: () => Effect.succeed({ id: "1", name: "Test User" }),
         }),
-      ),
+      { wrapper: createWrapper() },
     );
 
-    // Create an effect that listens to the AbortSignal (same logic as useEffectQuery)
-    const withAbort = Effect.raceFirst(
-      effect,
-      Effect.async<never, never, never>((resume) => {
-        if (controller.signal.aborted) {
-          resume(Effect.interrupt);
-          return;
-        }
-        const onAbort = () => resume(Effect.interrupt);
-        controller.signal.addEventListener("abort", onAbort);
-        return Effect.sync(() => controller.signal.removeEventListener("abort", onAbort));
-      }),
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.data).toEqual({ id: "1", name: "Test User" });
+  });
+
+  it("should set error when Effect fails", async () => {
+    const { result } = renderHook(
+      () =>
+        useEffectQuery({
+          queryKey: ["user", "fail"],
+          queryFn: () => Effect.fail(new NetworkError({ message: "Connection failed" })),
+          retry: false,
+        }),
+      { wrapper: createWrapper() },
     );
 
-    // Start the effect and immediately abort
-    const exitPromise = Effect.runPromiseExit(withAbort);
-    controller.abort();
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
 
-    const exit = await exitPromise;
+    // The error should be the typed error, not a Cause wrapper
+    expect(result.current.error).toBeInstanceOf(NetworkError);
+    expect(result.current.error?._tag).toBe("NetworkError");
+    expect((result.current.error as NetworkError)?.message).toBe("Connection failed");
+  });
 
-    expect(exit._tag).toBe("Failure");
-    if (exit._tag === "Failure") {
-      expect(Cause.isInterruptedOnly(exit.cause)).toBe(true);
-    }
+  it("should work with Match.valueTags for error discrimination", async () => {
+    const { result } = renderHook(
+      () =>
+        useEffectQuery({
+          queryKey: ["user", "error-match"],
+          queryFn: () => Effect.fail(new NetworkError({ message: "Timeout" })),
+          retry: false,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    // This is the key test - error should be usable with Match.valueTags
+    const matchResult = Match.valueTags(result.current.error!, {
+      NetworkError: (e) => `Network: ${e.message}`,
+    });
+
+    expect(matchResult).toBe("Network: Timeout");
+  });
+
+  it("should handle multiple error types with Match.valueTags", async () => {
+    type QueryError = NetworkError | NotFoundError;
+
+    const { result } = renderHook(
+      () =>
+        useEffectQuery<{ id: string }, QueryError, { id: string }, ["resource", string]>({
+          queryKey: ["resource", "missing"],
+          queryFn: () => Effect.fail(new NotFoundError({ resourceId: "missing" })),
+          retry: false,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    const matchResult = Match.valueTags(result.current.error!, {
+      NetworkError: (e) => `Network: ${e.message}`,
+      NotFoundError: (e) => `NotFound: ${e.resourceId}`,
+    });
+
+    expect(matchResult).toBe("NotFound: missing");
+  });
+
+  it("should handle Effect.die (defects) correctly", async () => {
+    const defect = new Error("Unexpected crash");
+
+    const { result } = renderHook(
+      () =>
+        useEffectQuery({
+          queryKey: ["user", "defect"],
+          queryFn: () => Effect.die(defect),
+          retry: false,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    // Defects should be thrown as-is
+    expect(result.current.error).toBe(defect);
+  });
+
+  it("should pass queryKey in context to queryFn", async () => {
+    const queryFn = vi.fn((context: { queryKey: readonly ["user", string] }) =>
+      Effect.succeed({ id: context.queryKey[1], name: "User" }),
+    );
+
+    const { result } = renderHook(
+      () =>
+        useEffectQuery({
+          queryKey: ["user", "123"] as const,
+          queryFn,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(queryFn).toHaveBeenCalled();
+    const callArg = queryFn.mock.calls[0][0];
+    expect(callArg.queryKey).toEqual(["user", "123"]);
+  });
+
+  it("should handle interruption via AbortSignal (query cancellation)", async () => {
+    let wasInterrupted = false;
+    let effectStarted = false;
+
+    const { result, unmount } = renderHook(
+      () =>
+        useEffectQuery({
+          queryKey: ["user", "interrupted"],
+          queryFn: () =>
+            Effect.gen(function* () {
+              effectStarted = true;
+              // Simulate a long-running operation
+              yield* Effect.sleep("10 seconds");
+              return { id: "1", name: "User" };
+            }).pipe(
+              Effect.onInterrupt(() =>
+                Effect.sync(() => {
+                  wasInterrupted = true;
+                }),
+              ),
+            ),
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    // Wait for the effect to start
+    await waitFor(() => {
+      expect(effectStarted).toBe(true);
+    });
+
+    // Unmounting should trigger abort signal and interrupt the effect
+    unmount();
+
+    // Wait a bit for the interruption to propagate
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
     expect(wasInterrupted).toBe(true);
   });
 });
 
-describe("Type-level tests for runtime requirement", () => {
+// ============================================================================
+// Initial Data Tests
+// ============================================================================
+
+describe("useEffectQuery with initial data", () => {
+  it("should have defined data immediately with initialData", async () => {
+    const { result } = renderHook(
+      () =>
+        useEffectQuery({
+          queryKey: ["user", "initial"],
+          queryFn: () => Effect.succeed({ id: "1", name: "Fetched User" }),
+          initialData: { id: "0", name: "Initial User" },
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    // Data should be immediately available
+    expect(result.current.data).toEqual({ id: "0", name: "Initial User" });
+
+    // After fetch completes, data should update
+    await waitFor(() => {
+      expect(result.current.data).toEqual({ id: "1", name: "Fetched User" });
+    });
+  });
+});
+
+// ============================================================================
+// Runtime Tests
+// ============================================================================
+
+describe("useEffectQuery with runtime", () => {
+  it("should work with ManagedRuntime", async () => {
+    const UserServiceLive = Layer.succeed(
+      UserService,
+      UserService.of({
+        getUser: (id) => Effect.succeed({ id, name: "Service User" }),
+      }),
+    );
+
+    const runtime = ManagedRuntime.make(UserServiceLive);
+
+    const { result } = renderHook(
+      () =>
+        useEffectQuery({
+          queryKey: ["user", "runtime"],
+          queryFn: () =>
+            Effect.gen(function* () {
+              const service = yield* UserService;
+              return yield* service.getUser("1");
+            }),
+          runtime,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.data).toEqual({ id: "1", name: "Service User" });
+
+    await runtime.dispose();
+  });
+
+  it("should handle errors from runtime services", async () => {
+    const UserServiceLive = Layer.succeed(
+      UserService,
+      UserService.of({
+        getUser: () => Effect.fail(new NetworkError({ message: "Service unavailable" })),
+      }),
+    );
+
+    const runtime = ManagedRuntime.make(UserServiceLive);
+
+    const { result } = renderHook(
+      () =>
+        useEffectQuery({
+          queryKey: ["user", "runtime-error"],
+          queryFn: () =>
+            Effect.gen(function* () {
+              const service = yield* UserService;
+              return yield* service.getUser("1");
+            }),
+          runtime,
+          retry: false,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(result.current.error).toBeInstanceOf(NetworkError);
+    expect((result.current.error as NetworkError).message).toBe("Service unavailable");
+
+    await runtime.dispose();
+  });
+});
+
+// ============================================================================
+// Type-level Tests (compile-time verification)
+// ============================================================================
+
+describe("useEffectQuery type-level tests", () => {
   it("should compile: effect without requirements, no runtime needed", () => {
     type EffectNoReqs = Effect.Effect<string, NetworkError, never>;
     type Options = UseEffectQueryOptions<string, NetworkError, string, ["test"], never>;
 
-    // This should be valid - no runtime needed for Effect<..., never>
     const _options: Options = {
       queryKey: ["test"],
       queryFn: (): EffectNoReqs => Effect.succeed("test"),
@@ -217,7 +337,6 @@ describe("Type-level tests for runtime requirement", () => {
 
     const runtime = ManagedRuntime.make(UserServiceLive);
 
-    // This should be valid - runtime is provided for Effect<..., UserService>
     const _options: Options = {
       queryKey: ["user", "123"],
       queryFn: (): EffectWithReqs =>
@@ -231,9 +350,7 @@ describe("Type-level tests for runtime requirement", () => {
 
     expect(_options).toBeDefined();
   });
-});
 
-describe("Type-level tests for defined/undefined initial data", () => {
   it("should compile: defined initial data options", () => {
     type Options = DefinedInitialDataEffectQueryOptions<
       { id: string; name: string },
@@ -265,29 +382,22 @@ describe("Type-level tests for defined/undefined initial data", () => {
     const _options: Options = {
       queryKey: ["user", "123"],
       queryFn: () => Effect.succeed({ id: "123", name: "Test User" }),
-      // initialData is optional/undefined
     };
 
     expect(_options).toBeDefined();
   });
 
   it("should have correct result types for defined initial data", () => {
-    // This is a compile-time test
-    // DefinedUseEffectQueryResult should have data: TData (not TData | undefined)
     type Result = DefinedUseEffectQueryResult<{ id: string; name: string }, NetworkError>;
 
-    // If this compiles, the types are correct
     const checkDataType = (_result: Result) => {
       // In a real scenario with defined initial data, data would be non-null
-      // This just verifies the type structure
     };
 
     expect(checkDataType).toBeDefined();
   });
 
   it("should have correct result types for undefined initial data", () => {
-    // This is a compile-time test
-    // UseEffectQueryResult should have data: TData | undefined
     type Result = UseEffectQueryResult<{ id: string; name: string }, NetworkError>;
 
     const checkDataType = (_result: Result) => {
@@ -295,30 +405,5 @@ describe("Type-level tests for defined/undefined initial data", () => {
     };
 
     expect(checkDataType).toBeDefined();
-  });
-});
-
-describe("QueryFunctionContext access", () => {
-  it("should provide queryKey in context", () => {
-    type Options = UseEffectQueryOptions<
-      string,
-      NetworkError,
-      string,
-      ["user", string, { includeDetails: boolean }],
-      never
-    >;
-
-    const _options: Options = {
-      queryKey: ["user", "123", { includeDetails: true }],
-      queryFn: (context) => {
-        // Verify context has queryKey with correct type
-        const [_resource, userId, options] = context.queryKey;
-        expect(userId).toBe("123");
-        expect(options.includeDetails).toBe(true);
-        return Effect.succeed(`User ${userId}`);
-      },
-    };
-
-    expect(_options).toBeDefined();
   });
 });

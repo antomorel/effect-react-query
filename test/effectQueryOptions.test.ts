@@ -1,11 +1,10 @@
 import { Context, Effect, Layer, ManagedRuntime, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { effectQueryOptions } from "../src";
 import type {
   DefinedInitialDataEffectQueryOptionsResult,
   UndefinedInitialDataEffectQueryOptionsResult,
-  UseEffectQueryOptionsResult,
 } from "../src";
+import { effectQueryOptions } from "../src";
 
 // Define errors using Schema.TaggedError
 class NetworkError extends Schema.TaggedError<NetworkError>()("NetworkError", {
