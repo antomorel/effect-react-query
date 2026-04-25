@@ -1,18 +1,22 @@
 import { HttpApiBuilder, HttpApiError, HttpServer } from "@effect/platform";
 import { BunHttpServer, BunRuntime } from "@effect/platform-bun";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Match } from "effect";
 import { Api } from "./api";
 
 export const ApiGroupLive = HttpApiBuilder.group(Api, "api", (handlers) =>
-  handlers
-    .handle("success", () =>
-      Effect.succeed({
-        message: "Hello, world!",
-        method: "GET",
-      }),
-    )
-    .handle("error", () => new HttpApiError.BadRequest())
-    .handle("die", Effect.die),
+  handlers.handle("testMutation", ({ payload }) =>
+    Match.value(payload).pipe(
+      Match.when("success", () =>
+        Effect.succeed({
+          message: "Hello, world!",
+          method: "GET",
+        }),
+      ),
+      Match.when("error", () => Effect.fail(new HttpApiError.BadRequest())),
+      Match.when("die", Effect.die),
+      Match.exhaustive,
+    ),
+  ),
 );
 
 const ApiLive = HttpApiBuilder.api(Api).pipe(Layer.provide(ApiGroupLive));

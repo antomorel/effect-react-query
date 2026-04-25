@@ -6,14 +6,11 @@ export const HelloResponse = Schema.Struct({
   method: Schema.String,
 });
 
-const successEndpoint = HttpApiEndpoint.put("success", "/success").addSuccess(HelloResponse);
-const errorEndpoint = HttpApiEndpoint.put("error", "/error").addError(HttpApiError.BadRequest);
-const dieEndpoint = HttpApiEndpoint.put("die", "/die");
+const mutationEndpoint = HttpApiEndpoint.put("testMutation", "/mutation-test")
+  .setPayload(Schema.Literal("success", "error", "die"))
+  .addSuccess(HelloResponse)
+  .addError(HttpApiError.BadRequest);
 
-export const ApiGroup = HttpApiGroup.make("api")
-  .add(successEndpoint)
-  .add(errorEndpoint)
-  .add(dieEndpoint)
-  .prefix("/api");
+export const ApiGroup = HttpApiGroup.make("api").add(mutationEndpoint).prefix("/api");
 
 export const Api = HttpApi.make("example-api").add(ApiGroup);
