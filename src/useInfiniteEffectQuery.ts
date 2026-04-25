@@ -46,7 +46,6 @@ import type {
  * ```
  */
 
-// Overload 1: Defined initial data → data is always defined
 export function useInfiniteEffectQuery<
   TQueryFnData,
   TError,
@@ -65,7 +64,6 @@ export function useInfiniteEffectQuery<
   >,
 ): DefinedUseInfiniteEffectQueryResult<TData, TError>;
 
-// Overload 2: Undefined initial data → data may be undefined
 export function useInfiniteEffectQuery<
   TQueryFnData,
   TError,
@@ -84,7 +82,6 @@ export function useInfiniteEffectQuery<
   >,
 ): UseInfiniteEffectQueryResult<TData, TError>;
 
-// Overload 3: General case
 export function useInfiniteEffectQuery<
   TQueryFnData,
   TError,

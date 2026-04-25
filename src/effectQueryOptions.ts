@@ -42,7 +42,6 @@ import type {
  * ```
  */
 
-// Overload 1: Defined initial data
 export function effectQueryOptions<
   TQueryFnData,
   TError,
@@ -53,7 +52,6 @@ export function effectQueryOptions<
   options: DefinedInitialDataEffectQueryOptions<TQueryFnData, TError, TData, TQueryKey, R>,
 ): DefinedInitialDataEffectQueryOptionsResult<TQueryFnData, TError, TData, TQueryKey, R>;
 
-// Overload 2: Undefined initial data
 export function effectQueryOptions<
   TQueryFnData,
   TError,
@@ -64,7 +62,6 @@ export function effectQueryOptions<
   options: UndefinedInitialDataEffectQueryOptions<TQueryFnData, TError, TData, TQueryKey, R>,
 ): UndefinedInitialDataEffectQueryOptionsResult<TQueryFnData, TError, TData, TQueryKey, R>;
 
-// Overload 3: General case
 export function effectQueryOptions<
   TQueryFnData,
   TError,

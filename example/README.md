@@ -1,21 +1,22 @@
-# bun-react-template
+# effect-react-query Example
 
-To install dependencies:
+A demo application showcasing `effect-react-query` usage.
 
+## Getting Started
+
+**Install dependencies (from workspace root)**
 ```bash
 bun install
 ```
 
-To start a development server:
-
-```bash
-bun dev
+**Start backend server**
+```
+bun dev-back
 ```
 
-To run for production:
-
-```bash
-bun start
+**Start frontend server**
+```
+bun dev-front
 ```
 
-This project was created using `bun init` in bun v1.3.11. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+See the [main documentation](../docs/index.md) for the full API reference.

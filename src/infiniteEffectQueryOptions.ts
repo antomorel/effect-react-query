@@ -46,7 +46,6 @@ import type {
  * ```
  */
 
-// Overload 1: Defined initial data
 export function infiniteEffectQueryOptions<
   TQueryFnData,
   TError,
@@ -72,7 +71,6 @@ export function infiniteEffectQueryOptions<
   R
 >;
 
-// Overload 2: Undefined initial data
 export function infiniteEffectQueryOptions<
   TQueryFnData,
   TError,
@@ -98,7 +96,6 @@ export function infiniteEffectQueryOptions<
   R
 >;
 
-// Overload 3: General case
 export function infiniteEffectQueryOptions<
   TQueryFnData,
   TError,
