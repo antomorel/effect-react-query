@@ -1,5 +1,5 @@
+import { useEffectMutation } from "@antomorel/effect-react-query";
 import { Effect, Match } from "effect";
-import { useEffectMutation, useInfiniteEffectQuery } from "../../src";
 import { apiClient } from "./client";
 
 export function App() {

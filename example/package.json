@@ -9,6 +9,7 @@
     "build": "bun build ./src/index.html --outdir=dist --sourcemap --target=browser --minify --define:process.env.NODE_ENV='\"production\"' --env='BUN_PUBLIC_*'"
   },
   "dependencies": {
+    "@antomorel/effect-react-query": "^1.0.0",
     "@effect/platform": "^0.96.0",
     "@effect/platform-bun": "^0.89.0",
     "effect": "^3.21.1",
