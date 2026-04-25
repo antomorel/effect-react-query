@@ -56,6 +56,6 @@ export function createEffectQueryFn<TQueryFnData, TError, TContext, R>(
       });
     }
 
-    throw cause;
+    throw Cause.squash(cause);
   };
 }

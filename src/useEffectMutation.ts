@@ -6,9 +6,6 @@ import type { UseEffectMutationOptions, UseEffectMutationResult } from "./types"
 /**
  * A React Query mutation hook that works with Effect.
  *
- * This hook wraps `useMutation` to provide typed error handling for Effects.
- * The error type from your Effect is preserved and can be matched using
- *
  * @example
  * ```ts
  * import { useEffectMutation } from "effect-react-query";
@@ -73,7 +70,7 @@ export function useEffectMutation<TData, TError, TVariables, TContext = unknown,
         });
       }
 
-      throw cause;
+      throw Cause.squash(cause);
     },
   });
 
