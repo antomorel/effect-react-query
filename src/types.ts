@@ -4,6 +4,8 @@ import type {
   UseQueryOptions,
   UseQueryResult,
   DefinedUseQueryResult,
+  UseSuspenseQueryOptions,
+  UseSuspenseQueryResult,
   QueryKey,
   QueryFunctionContext,
   NonUndefinedGuard,
@@ -116,3 +118,34 @@ export type DefinedUseEffectQueryResult<TData = unknown, TError = unknown> = Def
   TData,
   TError
 >;
+
+/**
+ * Options for useEffectSuspenseQuery hook.
+ *
+ * @typeParam TQueryFnData - The data type returned by the query function
+ * @typeParam TError - The typed error type from Effect
+ * @typeParam TData - The data type after transformation (defaults to TQueryFnData)
+ * @typeParam TQueryKey - The query key type
+ * @typeParam R - The Effect requirements type
+ */
+export type UseEffectSuspenseQueryOptions<
+  TQueryFnData = unknown,
+  TError = unknown,
+  TData = TQueryFnData,
+  TQueryKey extends QueryKey = QueryKey,
+  R = never,
+> = Omit<UseSuspenseQueryOptions<TQueryFnData, TError, TData, TQueryKey>, "queryFn"> & {
+  /**
+   * The query function that returns an Effect.
+   * Receives the same QueryFunctionContext as standard useSuspenseQuery.
+   */
+  queryFn: (context: QueryFunctionContext<TQueryKey>) => Effect.Effect<TQueryFnData, TError, R>;
+} & RuntimeOption<R>;
+
+/**
+ * The result of useEffectSuspenseQuery hook.
+ */
+export type UseEffectSuspenseQueryResult<
+  TData = unknown,
+  TError = unknown,
+> = UseSuspenseQueryResult<TData, TError>;

@@ -1,31 +1,26 @@
+import type { QueryFunctionContext, QueryKey } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
-import type { QueryKey, QueryFunctionContext } from "@tanstack/react-query";
-import { Cause, Effect, Exit, ManagedRuntime, Runtime } from "effect";
+import type { Effect, ManagedRuntime, Runtime } from "effect";
+import { createEffectQueryFn } from "./internal/createEffectQueryFn";
 import type {
-  UseEffectQueryOptions,
-  UseEffectQueryResult,
   DefinedInitialDataEffectQueryOptions,
   DefinedUseEffectQueryResult,
   UndefinedInitialDataEffectQueryOptions,
+  UseEffectQueryOptions,
+  UseEffectQueryResult,
 } from "./types";
-import { hasProperty } from "effect/Predicate";
 
 /**
  * A React Query hook that works with Effect.
  *
  * This hook wraps `useQuery` to provide typed error handling for Effects.
- * The error type from your Effect is preserved and can be matched using
+ * The error type from the Effect is preserved and can be matched using
  * Effect's pattern matching utilities.
  *
  * @example
  * ```ts
  * import { useEffectQuery } from "effect-react-query";
  * import { Match, Schema, Effect } from "effect";
- *
- * // Define your errors with Schema.TaggedError
- * class NetworkError extends Schema.TaggedError<NetworkError>()("NetworkError", {
- *   message: Schema.String,
- * }) {}
  *
  * // Effect without requirements (R = never)
  * const query = useEffectQuery({
@@ -99,50 +94,6 @@ export function useEffectQuery<
 
   return useQuery<TQueryFnData, TError, TData, TQueryKey>({
     ...restOptions,
-    queryFn: async (context: QueryFunctionContext<TQueryKey>) => {
-      const effect = queryFn(context);
-
-      // Create an effect that listens to the AbortSignal for cancellation
-      const withAbort = Effect.raceFirst(
-        effect,
-        Effect.async<never, never, never>((resume) => {
-          if (context.signal.aborted) {
-            resume(Effect.interrupt);
-            return;
-          }
-          const onAbort = () => resume(Effect.interrupt);
-          context.signal.addEventListener("abort", onAbort);
-          return Effect.sync(() => context.signal.removeEventListener("abort", onAbort));
-        }),
-      );
-
-      let exit: Exit.Exit<TQueryFnData, unknown>;
-
-      if (runtime) {
-        if (hasProperty(runtime, ManagedRuntime.TypeId)) {
-          exit = await runtime.runPromiseExit(withAbort);
-        } else {
-          exit = await Runtime.runPromiseExit(runtime)(withAbort);
-        }
-      } else {
-        exit = await Effect.runPromiseExit(
-          withAbort as Effect.Effect<TQueryFnData, TError, never>,
-        );
-      }
-
-      if (Exit.isSuccess(exit)) return exit.value;
-
-      const cause = exit.cause;
-
-      // Check for interruption - don't call onError, just hang
-      // React Query will handle cleanup
-      if (Cause.isInterruptedOnly(cause)) {
-        return new Promise<TQueryFnData>(() => {
-          // Never resolves - query is cancelled
-        });
-      }
-
-      throw cause;
-    },
+    queryFn: createEffectQueryFn(queryFn, runtime, (context) => context.signal),
   });
 }

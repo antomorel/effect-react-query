@@ -1,5 +1,6 @@
 export { useEffectMutation } from "./useEffectMutation";
 export { useEffectQuery } from "./useEffectQuery";
+export { useEffectSuspenseQuery } from "./useEffectSuspenseQuery";
 
 export type {
   UseEffectMutationOptions,
@@ -9,4 +10,6 @@ export type {
   DefinedInitialDataEffectQueryOptions,
   UndefinedInitialDataEffectQueryOptions,
   DefinedUseEffectQueryResult,
+  UseEffectSuspenseQueryOptions,
+  UseEffectSuspenseQueryResult,
 } from "./types";

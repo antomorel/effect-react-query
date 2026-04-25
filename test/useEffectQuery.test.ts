@@ -200,7 +200,13 @@ describe("Type-level tests for runtime requirement", () => {
 
   it("should compile: effect with requirements, runtime required", () => {
     type EffectWithReqs = Effect.Effect<string, NetworkError, UserService>;
-    type Options = UseEffectQueryOptions<string, NetworkError, string, ["user", string], UserService>;
+    type Options = UseEffectQueryOptions<
+      string,
+      NetworkError,
+      string,
+      ["user", string],
+      UserService
+    >;
 
     const UserServiceLive = Layer.succeed(
       UserService,
