@@ -13,6 +13,8 @@ import type {
   UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
+  UseSuspenseInfiniteQueryOptions,
+  UseSuspenseInfiniteQueryResult,
   UseSuspenseQueryOptions,
   UseSuspenseQueryResult,
 } from "@tanstack/react-query";
@@ -337,3 +339,49 @@ export type UseInfiniteEffectQueryOptionsResult<
 > = UseInfiniteEffectQueryOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam, R> & {
   queryKey: DataTag<TQueryKey, InfiniteData<TQueryFnData>, TError>;
 };
+
+// ============================================================================
+// Infinite Suspense Query Types
+// ============================================================================
+
+/**
+ * Options for useInfiniteEffectSuspenseQuery hook.
+ *
+ * Note: enabled, throwOnError, and placeholderData are not available in suspense queries.
+ *
+ * @typeParam TQueryFnData - The data type returned by the query function (per page)
+ * @typeParam TError - The typed error type from Effect
+ * @typeParam TData - The data type after transformation (defaults to InfiniteData<TQueryFnData>)
+ * @typeParam TQueryKey - The query key type
+ * @typeParam TPageParam - The page parameter type
+ * @typeParam R - The Effect requirements type
+ */
+export type UseInfiniteEffectSuspenseQueryOptions<
+  TQueryFnData = unknown,
+  TError = unknown,
+  TData = InfiniteData<TQueryFnData>,
+  TQueryKey extends QueryKey = QueryKey,
+  TPageParam = unknown,
+  R = never,
+> = Omit<
+  UseSuspenseInfiniteQueryOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam>,
+  "queryFn"
+> & {
+  /**
+   * The query function that returns an Effect.
+   * Receives the same QueryFunctionContext as standard useSuspenseInfiniteQuery,
+   * including pageParam for pagination.
+   */
+  queryFn: (
+    context: QueryFunctionContext<TQueryKey, TPageParam>,
+  ) => Effect.Effect<TQueryFnData, TError, R>;
+} & RuntimeOption<R>;
+
+/**
+ * The result of useInfiniteEffectSuspenseQuery hook.
+ * Data is always defined (never undefined) due to Suspense behavior.
+ */
+export type UseInfiniteEffectSuspenseQueryResult<
+  TData = unknown,
+  TError = unknown,
+> = UseSuspenseInfiniteQueryResult<TData, TError>;
