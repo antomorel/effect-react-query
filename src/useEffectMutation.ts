@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { Cause, Effect, Exit, ManagedRuntime, Runtime } from "effect";
-import type { UseEffectMutationOptions, UseEffectMutationResult } from "./types";
 import { hasProperty } from "effect/Predicate";
+import type { UseEffectMutationOptions, UseEffectMutationResult } from "./types";
 
 /**
  * A React Query mutation hook that works with Effect.
@@ -40,10 +40,7 @@ import { hasProperty } from "effect/Predicate";
 export function useEffectMutation<TData, TError, TVariables, TContext = unknown, R = never>(
   options: UseEffectMutationOptions<TData, TError, TVariables, TContext, R>,
 ): UseEffectMutationResult<TData, TError, TVariables, TContext> {
-  const { mutationFn, runtime, ...restOptions } = options as {
-    mutationFn: (variables: TVariables) => Effect.Effect<TData, TError, R>;
-    runtime?: Runtime.Runtime<R> | ManagedRuntime.ManagedRuntime<R, unknown>;
-  };
+  const { mutationFn, runtime, ...restOptions } = options;
 
   const mutation = useMutation<TData, TError, TVariables, TContext>({
     ...restOptions,
