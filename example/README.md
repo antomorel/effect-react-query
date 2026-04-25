@@ -5,16 +5,19 @@ A demo application showcasing `effect-react-query` usage.
 ## Getting Started
 
 **Install dependencies (from workspace root)**
+
 ```bash
 bun install
 ```
 
 **Start backend server**
+
 ```
 bun dev-back
 ```
 
 **Start frontend server**
+
 ```
 bun dev-front
 ```
