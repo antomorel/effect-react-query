@@ -21,7 +21,7 @@ import type {
  *
  * @example
  * ```ts
- * import { infiniteEffectQueryOptions, useInfiniteEffectQuery } from "effect-react-query";
+ * import { infiniteEffectQueryOptions, useInfiniteEffectQuery } from "@antomorel/effect-react-query";
  * import { Effect } from "effect";
  *
  * // Define reusable infinite query options

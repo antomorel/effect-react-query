@@ -12,7 +12,7 @@ import type {
  *
  * @example
  * ```ts
- * import { useInfiniteEffectSuspenseQuery } from "effect-react-query";
+ * import { useInfiniteEffectSuspenseQuery } from "@antomorel/effect-react-query";
  * import { Effect } from "effect";
  *
  * // Effect without requirements (R = never)

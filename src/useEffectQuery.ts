@@ -19,7 +19,7 @@ import type {
  *
  * @example
  * ```ts
- * import { useEffectQuery } from "effect-react-query";
+ * import { useEffectQuery } from "@antomorel/effect-react-query";
  * import { Match, Schema, Effect } from "effect";
  *
  * // Effect without requirements (R = never)

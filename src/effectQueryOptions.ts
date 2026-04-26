@@ -21,7 +21,7 @@ import type {
  *
  * @example
  * ```ts
- * import { effectQueryOptions, useEffectQuery } from "effect-react-query";
+ * import { effectQueryOptions, useEffectQuery } from "@antomorel/effect-react-query";
  * import { Effect } from "effect";
  *
  * // Define reusable query options

@@ -15,7 +15,7 @@ pnpm add @antomorel/effect-react-query
 ## Quick Example
 
 ```ts
-import { useEffectQuery, useEffectMutation } from "effect-react-query";
+import { useEffectQuery, useEffectMutation } from "@antomorel/effect-react-query";
 import { Effect, Schema, Match } from "effect";
 
 // Define typed errors

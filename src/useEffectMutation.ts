@@ -8,7 +8,7 @@ import type { UseEffectMutationOptions, UseEffectMutationResult } from "./types"
  *
  * @example
  * ```ts
- * import { useEffectMutation } from "effect-react-query";
+ * import { useEffectMutation } from "@antomorel/effect-react-query";
  * import { Match, Schema } from "effect";
  *
  * // Define your errors with Schema.TaggedError

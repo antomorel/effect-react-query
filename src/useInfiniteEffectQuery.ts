@@ -18,7 +18,7 @@ import type {
  *
  * @example
  * ```ts
- * import { useInfiniteEffectQuery } from "effect-react-query";
+ * import { useInfiniteEffectQuery } from "@antomorel/effect-react-query";
  * import { Effect } from "effect";
  *
  * // Effect without requirements (R = never)

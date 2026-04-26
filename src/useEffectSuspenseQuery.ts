@@ -12,7 +12,7 @@ import type { UseEffectSuspenseQueryOptions, UseEffectSuspenseQueryResult } from
  *
  * @example
  * ```ts
- * import { useEffectSuspenseQuery } from "effect-react-query";
+ * import { useEffectSuspenseQuery } from "@antomorel/effect-react-query";
  * import { Effect } from "effect";
  *
  * // Effect without requirements (R = never)
