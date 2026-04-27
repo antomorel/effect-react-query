@@ -143,12 +143,22 @@ export type UseEffectSuspenseQueryOptions<
   TData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
   R = never,
-> = Omit<UseSuspenseQueryOptions<TQueryFnData, TError, TData, TQueryKey>, "queryFn"> & {
+> = Omit<
+  UseSuspenseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
+  "queryFn" | "initialData"
+> & {
   /**
    * The query function that returns an Effect.
    * Receives the same QueryFunctionContext as standard useSuspenseQuery.
    */
   queryFn: (context: QueryFunctionContext<TQueryKey>) => Effect.Effect<TQueryFnData, TError, R>;
+  /**
+   * Initial data for the query.
+   */
+  initialData?:
+    | undefined
+    | InitialDataFunction<NonUndefinedGuard<TQueryFnData>>
+    | NonUndefinedGuard<TQueryFnData>;
 } & RuntimeOption<R>;
 
 /**
