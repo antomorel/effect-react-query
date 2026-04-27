@@ -1,4 +1,8 @@
-import { useEffectMutation } from "@antomorel/effect-react-query";
+import {
+  effectQueryOptions,
+  useEffectMutation,
+  useEffectSuspenseQuery,
+} from "@antomorel/effect-react-query";
 import { Effect, Match } from "effect";
 import { apiClient } from "./client";
 
@@ -16,9 +20,23 @@ export function App() {
     }),
   });
 
+  const queryOptions = effectQueryOptions({
+    queryKey: ["test"] as const,
+    queryFn: () =>
+      Effect.gen(function* () {
+        const client = yield* apiClient;
+        return yield* client.api.testMutation({ payload: "success" });
+      }),
+    staleTime: 1000,
+  });
+
+  const { data } = useEffectSuspenseQuery(queryOptions);
+
   return (
     <div>
       <h1>effect-react-query example</h1>
+
+      <pre>{JSON.stringify(data, null, 2)}</pre>
       <button onClick={() => mutate("success")}>Fetch success</button>
       <button onClick={() => mutate("error")}>Fetch error</button>
       <button onClick={() => mutate("die")}>Fetch die</button>
