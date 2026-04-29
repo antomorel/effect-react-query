@@ -149,6 +149,50 @@ const postsQueryOptions = () =>
   });
 ```
 
+## toQueryOptions
+
+Converts Effect-based query options to standard React Query options for use with `queryClient` methods like `fetchQuery`, `ensureQueryData`, and `prefetchQuery`.
+
+```ts
+import { effectQueryOptions, toQueryOptions } from "@antomorel/effect-react-query";
+
+// Define reusable query options
+const userQueryOptions = (userId: string) =>
+  effectQueryOptions({
+    queryKey: ["user", userId] as const,
+    queryFn: () => fetchUser(userId),
+  });
+
+// Use with queryClient methods
+await queryClient.fetchQuery(toQueryOptions(userQueryOptions("123")));
+await queryClient.ensureQueryData(toQueryOptions(userQueryOptions("456")));
+await queryClient.prefetchQuery(toQueryOptions(userQueryOptions("789")));
+```
+
+### Notes
+
+- The `select` option is not supported by `queryClient` methods and will be stripped from the output
+- All other options (`staleTime`, `gcTime`, `retry`, `initialData`, etc.) are preserved
+- Works with both `ManagedRuntime` and standard `Runtime`
+
+### With Runtime Dependencies
+
+```ts
+const protectedQueryOptions = (userId: string) =>
+  effectQueryOptions({
+    queryKey: ["user", userId] as const,
+    queryFn: () =>
+      Effect.gen(function* () {
+        const service = yield* UserService;
+        return yield* service.getUser(userId);
+      }),
+    runtime: myRuntime,
+  });
+
+// Runtime is automatically used when executing
+await queryClient.fetchQuery(toQueryOptions(protectedQueryOptions("123")));
+```
+
 # Type-Safe Error Handling
 
 Errors retain their typed structure and can be matched using Effect's `Match.valueTags`:
