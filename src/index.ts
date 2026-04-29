@@ -1,5 +1,6 @@
 export { effectQueryOptions } from "./effectQueryOptions";
 export { infiniteEffectQueryOptions } from "./infiniteEffectQueryOptions";
+export { toQueryOptions } from "./toQueryOptions";
 export { useEffectMutation } from "./useEffectMutation";
 export { useEffectQuery } from "./useEffectQuery";
 export { useEffectSuspenseQuery } from "./useEffectSuspenseQuery";
@@ -27,7 +28,6 @@ export type {
   UseInfiniteEffectQueryOptions,
   UseInfiniteEffectQueryOptionsResult,
   UseInfiniteEffectQueryResult,
-  // Infinite suspense query types
   UseInfiniteEffectSuspenseQueryOptions,
-  UseInfiniteEffectSuspenseQueryResult,
+  UseInfiniteEffectSuspenseQueryResult
 } from "./types";

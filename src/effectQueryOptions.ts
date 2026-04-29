@@ -15,13 +15,13 @@ import type {
  * query management. The options can be reused across components and passed
  * directly to useEffectQuery or useEffectSuspenseQuery.
  *
- * Note: These options cannot be used directly with `queryClient.prefetchQuery()`
- * or `queryClient.fetchQuery()` because the queryFn returns an Effect, not a Promise.
- * For prefetching, you need to manually convert the Effect to a Promise.
+ * To use these options with `queryClient.prefetchQuery()`, `queryClient.fetchQuery()`,
+ * or `queryClient.ensureQueryData()`, use the `toQueryOptions` helper to convert
+ * the Effect-based options to standard React Query options.
  *
  * @example
  * ```ts
- * import { effectQueryOptions, useEffectQuery } from "@antomorel/effect-react-query";
+ * import { effectQueryOptions, toQueryOptions, useEffectQuery } from "@antomorel/effect-react-query";
  * import { Effect } from "effect";
  *
  * // Define reusable query options
@@ -30,8 +30,13 @@ import type {
  *   queryFn: () => fetchUser(userId), // Effect<User, NetworkError, never>
  * });
  *
- * // Use in component
+ * // Use in component with hooks
  * const query = useEffectQuery(userQueryOptions("123"));
+ *
+ * // Use with queryClient methods via toQueryOptions
+ * await queryClient.fetchQuery(toQueryOptions(userQueryOptions("123")));
+ * await queryClient.ensureQueryData(toQueryOptions(userQueryOptions("456")));
+ * await queryClient.prefetchQuery(toQueryOptions(userQueryOptions("789")));
  *
  * // With runtime requirements
  * const protectedQueryOptions = (userId: string) => effectQueryOptions({
