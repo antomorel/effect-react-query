@@ -49,12 +49,106 @@ const query = useEffectSuspenseQuery({
   queryKey: ["user", userId],
   queryFn: () => fetchUser(userId),
 });
-
-// query.data is guaranteed to be defined
-console.log(query.data.name);
 ```
 
 Does not support `enabled`, `throwOnError`, or `placeholderData` options.
+
+## useEffectQueries
+
+React Query's `useQueries` for running multiple Effect queries in parallel.
+
+```ts
+import { useEffectQueries } from "@antomorel/effect-react-query";
+
+const results = useEffectQueries({
+  queries: [
+    {
+      queryKey: ["user", "1"],
+      queryFn: () => fetchUser("1"), // Effect<User, NetworkError>
+    },
+    {
+      queryKey: ["user", "2"],
+      queryFn: () => fetchUser("2"),
+    },
+  ],
+});
+
+// Access individual results
+const user1 = results[0].data;
+const user2 = results[1].data;
+```
+
+### Options
+
+| Option    | Description                                                        |
+| --------- | ------------------------------------------------------------------ |
+| `queries` | Array of query options, each with `queryKey`, `queryFn`, `runtime` |
+| `combine` | Optional function to derive a computed result from all queries     |
+
+### With combine Function
+
+Use `combine` to derive computed values from multiple query results:
+
+```ts
+const { users, isLoading, isAnyError } = useEffectQueries({
+  queries: [
+    { queryKey: ["user", "1"], queryFn: () => fetchUser("1") },
+    { queryKey: ["user", "2"], queryFn: () => fetchUser("2") },
+  ],
+  combine: (results) => ({
+    users: results.map((r) => r.data).filter(Boolean),
+    isLoading: results.some((r) => r.isLoading),
+    isAnyError: results.some((r) => r.isError),
+  }),
+});
+```
+
+### With Runtime Dependencies
+
+Each query can have its own runtime:
+
+```ts
+const results = useEffectQueries({
+  queries: [
+    {
+      queryKey: ["user", userId],
+      queryFn: () =>
+        Effect.gen(function* () {
+          const service = yield* UserService;
+          return yield* service.getUser(userId);
+        }),
+      runtime: myRuntime,
+    },
+  ],
+});
+```
+
+## useEffectSuspenseQueries
+
+Suspense version of `useEffectQueries`. Data is always defined (component suspends until all queries are loaded).
+
+```ts
+import { useEffectSuspenseQueries } from "@antomorel/effect-react-query";
+
+const results = useEffectSuspenseQueries({
+  queries: [
+    { queryKey: ["user", "1"], queryFn: () => fetchUser("1") },
+    { queryKey: ["user", "2"], queryFn: () => fetchUser("2") },
+  ],
+});
+```
+
+### With combine Function
+
+```ts
+const users = useEffectSuspenseQueries({
+  queries: [
+    { queryKey: ["user", "1"], queryFn: () => fetchUser("1") },
+    { queryKey: ["user", "2"], queryFn: () => fetchUser("2") },
+  ],
+  combine: (results) => results.map((r) => r.data),
+});
+```
 
 ## useEffectMutation
 
