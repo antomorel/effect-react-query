@@ -7,6 +7,7 @@ import type {
   InfiniteData,
   InitialDataFunction,
   NonUndefinedGuard,
+  QueriesPlaceholderDataFunction,
   QueryFunctionContext,
   QueryKey,
   UseInfiniteQueryOptions,
@@ -48,7 +49,7 @@ export type UseEffectMutationOptions<
  * Runtime option - required when R is not never, forbidden when R is never.
  * Accepts either a Runtime or a ManagedRuntime.
  */
-type RuntimeOption<R> = [R] extends [never]
+export type RuntimeOption<R> = [R] extends [never]
   ? { runtime?: undefined }
   : { runtime: Runtime.Runtime<R> | ManagedRuntime.ManagedRuntime<R, unknown> };
 
@@ -436,3 +437,103 @@ export type UseInfiniteEffectSuspenseQueryResult<
   TData = unknown,
   TError = unknown,
 > = UseSuspenseInfiniteQueryResult<TData, TError>;
+
+// ============================================================================
+// useEffectQueries Types
+// ============================================================================
+
+/**
+ * Options for a single query within useEffectQueries.
+ * Extends React Query's UseQueryOptions but replaces queryFn with an Effect-returning function.
+ *
+ * @typeParam TQueryFnData - The data type returned by the query function
+ * @typeParam TError - The typed error type from Effect
+ * @typeParam TData - The data type after transformation (defaults to TQueryFnData)
+ * @typeParam TQueryKey - The query key type
+ * @typeParam R - The Effect requirements type
+ */
+export type UseEffectQueryOptionsForUseQueries<
+  TQueryFnData = unknown,
+  TError = unknown,
+  TData = TQueryFnData,
+  TQueryKey extends QueryKey = QueryKey,
+  R = never,
+> = Omit<
+  UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
+  "queryFn" | "placeholderData" | "subscribed"
+> & {
+  /**
+   * The query function that returns an Effect.
+   */
+  queryFn: (context: QueryFunctionContext<TQueryKey>) => Effect.Effect<TQueryFnData, TError, R>;
+  /**
+   * Placeholder data for this query.
+   */
+  placeholderData?: TQueryFnData | QueriesPlaceholderDataFunction<TQueryFnData>;
+} & RuntimeOption<R>;
+
+/**
+ * Maps an array of Effect query options to an array of UseQueryResult.
+ * Preserves tuple structure for proper type inference.
+ * Infers data and error types from the queryFn's Effect return type.
+ */
+export type EffectQueriesResults<
+  T extends ReadonlyArray<{ queryFn: (...args: any) => Effect.Effect<any, any, any> }>,
+> = {
+  -readonly [K in keyof T]: T[K] extends {
+    queryFn: (...args: any) => Effect.Effect<infer TData, infer TError, any>;
+    select?: (data: any) => infer TSelected;
+  }
+    ? UseQueryResult<unknown extends TSelected ? TData : TSelected, TError>
+    : T[K] extends { queryFn: (...args: any) => Effect.Effect<infer TData, infer TError, any> }
+      ? UseQueryResult<TData, TError>
+      : UseQueryResult;
+};
+
+// ============================================================================
+// useEffectSuspenseQueries Types
+// ============================================================================
+
+/**
+ * Options for a single query within useEffectSuspenseQueries.
+ * Extends React Query's UseSuspenseQueryOptions but replaces queryFn with an Effect-returning function.
+ *
+ * @typeParam TQueryFnData - The data type returned by the query function
+ * @typeParam TError - The typed error type from Effect
+ * @typeParam TData - The data type after transformation (defaults to TQueryFnData)
+ * @typeParam TQueryKey - The query key type
+ * @typeParam R - The Effect requirements type
+ */
+export type UseEffectSuspenseQueryOptionsForUseQueries<
+  TQueryFnData = unknown,
+  TError = unknown,
+  TData = TQueryFnData,
+  TQueryKey extends QueryKey = QueryKey,
+  R = never,
+> = Omit<
+  UseSuspenseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
+  "queryFn" | "enabled" | "throwOnError" | "placeholderData"
+> & {
+  /**
+   * The query function that returns an Effect.
+   */
+  queryFn: (context: QueryFunctionContext<TQueryKey>) => Effect.Effect<TQueryFnData, TError, R>;
+} & RuntimeOption<R>;
+
+/**
+ * Maps an array of Effect suspense query options to an array of UseSuspenseQueryResult.
+ * Preserves tuple structure for proper type inference.
+ * Infers data and error types from the queryFn's Effect return type.
+ */
+export type EffectSuspenseQueriesResults<
+  T extends ReadonlyArray<{ queryFn: (...args: any) => Effect.Effect<any, any, any> }>,
+> = {
+  -readonly [K in keyof T]: T[K] extends {
+    queryFn: (...args: any) => Effect.Effect<infer TData, infer TError, any>;
+    select?: (data: any) => infer TSelected;
+  }
+    ? UseSuspenseQueryResult<unknown extends TSelected ? TData : TSelected, TError>
+    : T[K] extends { queryFn: (...args: any) => Effect.Effect<infer TData, infer TError, any> }
+      ? UseSuspenseQueryResult<TData, TError>
+      : UseSuspenseQueryResult;
+};
