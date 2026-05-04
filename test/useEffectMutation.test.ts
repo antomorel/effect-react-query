@@ -359,6 +359,148 @@ describe("useEffectMutation with runtime", () => {
 });
 
 // ============================================================================
+// TVariables = void default behavior tests
+// ============================================================================
+
+describe("useEffectMutation with no variables (TVariables = void)", () => {
+  it("should allow calling mutate() with no arguments when mutationFn takes no parameters", async () => {
+    const { result } = renderHook(
+      () =>
+        useEffectMutation({
+          mutationFn: () => Effect.succeed({ id: "1", name: "No Args User" }),
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    // This should compile and work - mutate() with no arguments
+    await act(async () => {
+      result.current.mutate();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.data).toEqual({ id: "1", name: "No Args User" });
+  });
+
+  it("should allow calling mutate() with no arguments when mutationFn fails", async () => {
+    const onError = vi.fn();
+
+    const { result } = renderHook(
+      () =>
+        useEffectMutation({
+          mutationFn: () => Effect.fail(new NetworkError({ message: "No args failure" })),
+          onError,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    // This should compile and work - mutate() with no arguments
+    await act(async () => {
+      result.current.mutate();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0][0]).toBeInstanceOf(NetworkError);
+  });
+
+  it("should work with Match.valueTags in onError when mutationFn takes no parameters", async () => {
+    let matchedError: string | null = null;
+
+    const { result } = renderHook(
+      () =>
+        useEffectMutation({
+          mutationFn: () => Effect.fail(new NetworkError({ message: "Void param error" })),
+          onError: Match.valueTags({
+            NetworkError: (e) => {
+              matchedError = e.message;
+            },
+          }),
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await act(async () => {
+      result.current.mutate();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(matchedError).toBe("Void param error");
+  });
+
+  it("should work with runtime when mutationFn takes no parameters", async () => {
+    const UserServiceLive = Layer.succeed(
+      UserService,
+      UserService.of({
+        createUser: (name) => Effect.succeed({ id: "1", name }),
+      }),
+    );
+
+    const runtime = ManagedRuntime.make(UserServiceLive);
+
+    const { result } = renderHook(
+      () =>
+        useEffectMutation({
+          mutationFn: () =>
+            Effect.gen(function* () {
+              const service = yield* UserService;
+              return yield* service.createUser("Default User");
+            }),
+          runtime,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    // mutate() with no arguments should work with runtime
+    await act(async () => {
+      result.current.mutate();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.data).toEqual({ id: "1", name: "Default User" });
+
+    await runtime.dispose();
+  });
+
+  it("should call onSuccess callback when mutationFn takes no parameters", async () => {
+    const onSuccess = vi.fn();
+
+    const { result } = renderHook(
+      () =>
+        useEffectMutation({
+          mutationFn: () => Effect.succeed({ id: "1", name: "Success User" }),
+          onSuccess,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await act(async () => {
+      result.current.mutate();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+    expect(onSuccess.mock.calls[0][0]).toEqual({ id: "1", name: "Success User" });
+    // Variables should be undefined when TVariables is void
+    expect(onSuccess.mock.calls[0][1]).toBeUndefined();
+  });
+});
+
+// ============================================================================
 // Type-level Tests (compile-time verification)
 // ============================================================================
 
@@ -395,6 +537,22 @@ describe("useEffectMutation type-level tests", () => {
           return user.name;
         }),
       runtime: runtime,
+    };
+
+    expect(_options).toBeDefined();
+  });
+
+  it("should compile: TVariables defaults to void when not specified", () => {
+    // This test verifies the type-level fix for TVariables = void default
+    // If this compiles, the fix is working correctly
+    type OptionsWithVoidDefault = UseEffectMutationOptions<
+      { id: string },
+      NetworkError
+      // TVariables not specified - should default to void
+    >;
+
+    const _options: OptionsWithVoidDefault = {
+      mutationFn: () => Effect.succeed({ id: "1" }),
     };
 
     expect(_options).toBeDefined();

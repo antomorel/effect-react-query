@@ -34,7 +34,7 @@ import type { UseEffectMutationOptions, UseEffectMutationResult } from "./types"
  * });
  * ```
  */
-export function useEffectMutation<TData, TError, TVariables, TContext = unknown, R = never>(
+export function useEffectMutation<TData, TError, TVariables = void, TContext = unknown, R = never>(
   options: UseEffectMutationOptions<TData, TError, TVariables, TContext, R>,
 ): UseEffectMutationResult<TData, TError, TVariables, TContext> {
   const { mutationFn, runtime, ...restOptions } = options;

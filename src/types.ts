@@ -35,7 +35,7 @@ import type { Effect, ManagedRuntime, Runtime } from "effect";
 export type UseEffectMutationOptions<
   TData,
   TError,
-  TVariables,
+  TVariables = void,
   TContext = unknown,
   R = never,
 > = Omit<UseMutationOptions<TData, TError, TVariables, TContext>, "mutationFn"> & {
