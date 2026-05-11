@@ -1,12 +1,13 @@
 {
-  "name": "@antomorel/effect-react-query",
+  "name": "effect-react-query",
   "version": "1.1.1",
-  "homepage": "https://github.com/antomorel/effect-react-query",
+  "homepage": "https://github.com/spiko-tech/effect-react-query",
+  "description": "Tanstack Query Effectful hooks",
   "license": "MIT",
   "author": "Antonin MOREL",
   "repository": {
     "type": "git",
-    "url": "https://github.com/antomorel/effect-react-query.git"
+    "url": "https://github.com/spiko-tech/effect-react-query.git"
   },
   "workspaces": [
     "example"
