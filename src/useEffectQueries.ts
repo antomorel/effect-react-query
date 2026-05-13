@@ -23,7 +23,7 @@ type EffectQueryOptionsBase = {
  *
  * @example
  * ```ts
- * import { useEffectQueries } from "@antomorel/effect-react-query";
+ * import { useEffectQueries } from "@effect-react-query";
  * import { Effect } from "effect";
  *
  * // Multiple queries without requirements
