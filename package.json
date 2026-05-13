@@ -41,9 +41,13 @@
     "format": "tsdx format",
     "format:check": "tsdx format --check",
     "typecheck": "tsdx typecheck",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run build",
+    "changeset-version": "changeset version",
+    "changeset-publish": "bun run build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^0.5.2",
+    "@changesets/cli": "^2.29.8",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^22.10.2",
     "@types/react": "^19.2.14",

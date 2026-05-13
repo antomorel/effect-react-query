@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@1.6.4/schema.json",
+  "changelog": [
+    "@changesets/changelog-github",
+    {
+      "repo": "spiko-tech/effect-react-query"
+    }
+  ],
+  "commit": false,
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch"
+}
