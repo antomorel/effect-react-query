@@ -5,7 +5,7 @@
 React Query's `useQuery` that accepts Effect-returning query functions.
 
 ```ts
-import { useEffectQuery } from "@antomorel/effect-react-query";
+import { useEffectQuery } from "@effect-react-query";
 
 const query = useEffectQuery({
   queryKey: ["user", userId],
@@ -42,7 +42,7 @@ const query = useEffectQuery({
 Suspense version of `useEffectQuery`. Data is always defined (component suspends until loaded).
 
 ```ts
-import { useEffectSuspenseQuery } from "@antomorel/effect-react-query";
+import { useEffectSuspenseQuery } from "@effect-react-query";
 
 // Wrap in React Suspense boundary
 const query = useEffectSuspenseQuery({
@@ -58,7 +58,7 @@ Does not support `enabled`, `throwOnError`, or `placeholderData` options.
 React Query's `useQueries` for running multiple Effect queries in parallel.
 
 ```ts
-import { useEffectQueries } from "@antomorel/effect-react-query";
+import { useEffectQueries } from "@effect-react-query";
 
 const results = useEffectQueries({
   queries: [
@@ -128,7 +128,7 @@ const results = useEffectQueries({
 Suspense version of `useEffectQueries`. Data is always defined (component suspends until all queries are loaded).
 
 ```ts
-import { useEffectSuspenseQueries } from "@antomorel/effect-react-query";
+import { useEffectSuspenseQueries } from "@effect-react-query";
 
 const results = useEffectSuspenseQueries({
   queries: [
@@ -155,7 +155,7 @@ const users = useEffectSuspenseQueries({
 React Query's `useMutation` for Effect-returning mutation functions.
 
 ```ts
-import { useEffectMutation } from "@antomorel/effect-react-query";
+import { useEffectMutation } from "@effect-react-query";
 
 const mutation = useEffectMutation({
   mutationFn: (data: CreateUserInput) => createUser(data),
@@ -181,7 +181,7 @@ mutation.mutate({ name: "John", email: "john@example.com" });
 React Query's `useInfiniteQuery` for paginated Effect queries.
 
 ```ts
-import { useInfiniteEffectQuery } from "@antomorel/effect-react-query";
+import { useInfiniteEffectQuery } from "@effect-react-query";
 
 interface PostsPage {
   items: Post[];
@@ -213,7 +213,7 @@ Suspense version of `useInfiniteEffectQuery`. Data is always defined.
 Creates reusable, type-safe query options for `useEffectQuery` or `useEffectSuspenseQuery`.
 
 ```ts
-import { effectQueryOptions, useEffectQuery } from "@antomorel/effect-react-query";
+import { effectQueryOptions, useEffectQuery } from "@effect-react-query";
 
 // Define reusable query options
 const userQueryOptions = (userId: string) =>
@@ -232,7 +232,7 @@ const query = useEffectQuery(userQueryOptions("123"));
 Creates reusable, type-safe options for `useInfiniteEffectQuery`.
 
 ```ts
-import { infiniteEffectQueryOptions } from "@antomorel/effect-react-query";
+import { infiniteEffectQueryOptions } from "@effect-react-query";
 
 const postsQueryOptions = () =>
   infiniteEffectQueryOptions({
@@ -248,7 +248,7 @@ const postsQueryOptions = () =>
 Converts Effect-based query options to standard React Query options for use with `queryClient` methods like `fetchQuery`, `ensureQueryData`, and `prefetchQuery`.
 
 ```ts
-import { effectQueryOptions, toQueryOptions } from "@antomorel/effect-react-query";
+import { effectQueryOptions, toQueryOptions } from "@effect-react-query";
 
 // Define reusable query options
 const userQueryOptions = (userId: string) =>
@@ -293,7 +293,7 @@ Errors retain their typed structure and can be matched using Effect's `Match.val
 
 ```ts
 import { Schema, Match } from "effect";
-import { useEffectQuery } from "@antomorel/effect-react-query";
+import { useEffectQuery } from "@effect-react-query";
 
 // Define typed errors
 class NetworkError extends Schema.TaggedError<NetworkError>()("NetworkError", {
@@ -337,7 +337,7 @@ When Effects have service requirements, provide a `ManagedRuntime` or `Runtime`:
 
 ```ts
 import { Context, Effect, Layer, ManagedRuntime } from "effect";
-import { useEffectQuery } from "@antomorel/effect-react-query";
+import { useEffectQuery } from "@effect-react-query";
 
 // Define a service
 class UserService extends Context.Tag("UserService")<

@@ -24,7 +24,7 @@ type EffectSuspenseQueryOptionsBase = {
  *
  * @example
  * ```ts
- * import { useEffectSuspenseQueries } from "@antomorel/effect-react-query";
+ * import { useEffectSuspenseQueries } from "@effect-react-query";
  * import { Effect } from "effect";
  *
  * // Multiple queries without requirements - data is always defined
