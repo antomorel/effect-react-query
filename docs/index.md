@@ -1,5 +1,20 @@
 # API Reference
 
+## Table of Contents
+- [useEffectQuery](#useeffectquery)
+- [useEffectSuspenseQuery](#useeffectsuspensequery)
+- [useEffectQueries](#useeffectqueries)
+- [useEffectSuspenseQueries](#useeffectsuspensequeries)
+- [useEffectMutation](#useeffectmutation)
+- [useInfiniteEffectQuery](#useinfiniteeffectquery)
+- [useInfiniteEffectSuspenseQuery](#useinfiniteeffectsuspensequery)
+- [effectQueryOptions](#effectqueryoptions)
+- [infiniteEffectQueryOptions](#infiniteeffectqueryoptions)
+- [toQueryOptions](#toqueryoptions)
+- [Type-Safe Error Handling](#type-safe-error-handling)
+- [Dependency Injection](#dependency-injection)
+- [Advanced Patterns](#advanced-patterns)
+
 ## useEffectQuery
 
 React Query's `useQuery` that accepts Effect-returning query functions.
