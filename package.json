@@ -9,9 +9,6 @@
     "type": "git",
     "url": "https://github.com/spiko-tech/effect-react-query.git"
   },
-  "workspaces": [
-    "example"
-  ],
   "files": [
     "dist",
     "src"
