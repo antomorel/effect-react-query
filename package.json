@@ -1,5 +1,5 @@
 {
-  "name": "effect-react-query",
+  "name": "@spiko/effect-react-query",
   "version": "1.1.1",
   "homepage": "https://github.com/spiko-tech/effect-react-query",
   "description": "TanStack Query Effectful hooks",
