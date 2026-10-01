@@ -21,7 +21,9 @@ import type {
   UseSuspenseQueryOptions,
   UseSuspenseQueryResult,
 } from "@tanstack/react-query";
-import type { Effect, ManagedRuntime, Runtime } from "effect";
+import type * as Context from "effect/Context";
+import type * as Effect from "effect/Effect";
+import type * as ManagedRuntime from "effect/ManagedRuntime";
 
 /**
  * Options for useEffectMutation hook.
@@ -47,11 +49,11 @@ export type UseEffectMutationOptions<
 
 /**
  * Runtime option - required when R is not never, forbidden when R is never.
- * Accepts either a Runtime or a ManagedRuntime.
+ * Accepts either a Context or a ManagedRuntime.
  */
 export type RuntimeOption<R> = [R] extends [never]
   ? { runtime?: undefined }
-  : { runtime: Runtime.Runtime<R> | ManagedRuntime.ManagedRuntime<R, unknown> };
+  : { runtime: Context.Context<R> | ManagedRuntime.ManagedRuntime<R, unknown> };
 
 /**
  * The result of useEffectMutation hook.
@@ -478,14 +480,18 @@ export type UseEffectQueryOptionsForUseQueries<
  * Infers data and error types from the queryFn's Effect return type.
  */
 export type EffectQueriesResults<
-  T extends ReadonlyArray<{ queryFn: (...args: any) => Effect.Effect<any, any, any> }>,
+  T extends ReadonlyArray<{
+    queryFn: (...args: any) => Effect.Effect<any, any, any>;
+  }>,
 > = {
   -readonly [K in keyof T]: T[K] extends {
     queryFn: (...args: any) => Effect.Effect<infer TData, infer TError, any>;
     select?: (data: any) => infer TSelected;
   }
     ? UseQueryResult<unknown extends TSelected ? TData : TSelected, TError>
-    : T[K] extends { queryFn: (...args: any) => Effect.Effect<infer TData, infer TError, any> }
+    : T[K] extends {
+          queryFn: (...args: any) => Effect.Effect<infer TData, infer TError, any>;
+        }
       ? UseQueryResult<TData, TError>
       : UseQueryResult;
 };
@@ -526,14 +532,18 @@ export type UseEffectSuspenseQueryOptionsForUseQueries<
  * Infers data and error types from the queryFn's Effect return type.
  */
 export type EffectSuspenseQueriesResults<
-  T extends ReadonlyArray<{ queryFn: (...args: any) => Effect.Effect<any, any, any> }>,
+  T extends ReadonlyArray<{
+    queryFn: (...args: any) => Effect.Effect<any, any, any>;
+  }>,
 > = {
   -readonly [K in keyof T]: T[K] extends {
     queryFn: (...args: any) => Effect.Effect<infer TData, infer TError, any>;
     select?: (data: any) => infer TSelected;
   }
     ? UseSuspenseQueryResult<unknown extends TSelected ? TData : TSelected, TError>
-    : T[K] extends { queryFn: (...args: any) => Effect.Effect<infer TData, infer TError, any> }
+    : T[K] extends {
+          queryFn: (...args: any) => Effect.Effect<infer TData, infer TError, any>;
+        }
       ? UseSuspenseQueryResult<TData, TError>
       : UseSuspenseQueryResult;
 };

@@ -22,7 +22,7 @@ import type {
  * @example
  * ```ts
  * import { infiniteEffectQueryOptions, useInfiniteEffectQuery } from "@effect-react-query";
- * import { Effect } from "effect";
+ * import * as Effect from "effect/Effect";
  *
  * // Define reusable infinite query options
  * const postsQueryOptions = () => infiniteEffectQueryOptions({

@@ -1,6 +1,8 @@
 import type { QueryKey } from "@tanstack/react-query";
 import { useSuspenseQueries } from "@tanstack/react-query";
-import type { Effect, ManagedRuntime, Runtime } from "effect";
+import type * as Context from "effect/Context";
+import type * as Effect from "effect/Effect";
+import type * as ManagedRuntime from "effect/ManagedRuntime";
 import { createEffectQueryFn } from "./internal/createEffectQueryFn";
 import type { EffectSuspenseQueriesResults } from "./types";
 
@@ -12,7 +14,7 @@ import type { EffectSuspenseQueriesResults } from "./types";
 type EffectSuspenseQueryOptionsBase = {
   queryKey: QueryKey;
   queryFn: (...args: any[]) => Effect.Effect<any, any, any>;
-  runtime?: Runtime.Runtime<any> | ManagedRuntime.ManagedRuntime<any, any>;
+  runtime?: Context.Context<any> | ManagedRuntime.ManagedRuntime<any, any>;
 };
 
 /**
@@ -25,7 +27,7 @@ type EffectSuspenseQueryOptionsBase = {
  * @example
  * ```ts
  * import { useEffectSuspenseQueries } from "@effect-react-query";
- * import { Effect } from "effect";
+ * import * as Effect from "effect/Effect";
  *
  * // Multiple queries without requirements - data is always defined
  * const results = useEffectSuspenseQueries({

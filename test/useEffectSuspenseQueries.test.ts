@@ -1,5 +1,9 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import { Context, Effect, Layer, ManagedRuntime, Schema } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Schema from "effect/Schema";
 import { describe, expect, it, vi } from "vitest";
 import type { UseEffectSuspenseQueryOptionsForUseQueries } from "../src";
 import { useEffectSuspenseQueries } from "../src";
@@ -11,10 +15,10 @@ class NetworkError extends Schema.TaggedError<NetworkError>()("NetworkError", {
 }) {}
 
 // Define a service for testing runtime requirements
-class UserService extends Context.Tag("UserService")<
+class UserService extends Context.Service<
   UserService,
   { readonly getUser: (id: string) => Effect.Effect<{ id: string; name: string }, NetworkError> }
->() {}
+>()("UserService") {}
 
 // ============================================================================
 // Hook Behavior Tests

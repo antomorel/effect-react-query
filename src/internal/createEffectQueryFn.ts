@@ -1,5 +1,8 @@
-import { Cause, Effect, Exit, ManagedRuntime, Runtime } from "effect";
-import { hasProperty } from "effect/Predicate";
+import * as Cause from "effect/Cause";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as ManagedRuntime from "effect/ManagedRuntime";
 
 /**
  * Creates a query function that wraps an Effect-returning function.
@@ -9,40 +12,22 @@ import { hasProperty } from "effect/Predicate";
  */
 export function createEffectQueryFn<TQueryFnData, TError, TContext, R>(
   effectFn: (context: TContext) => Effect.Effect<TQueryFnData, TError, R>,
-  runtime: Runtime.Runtime<R> | ManagedRuntime.ManagedRuntime<R, unknown> | undefined,
-  getSignal: (context: TContext) => AbortSignal,
+  runtime: Context.Context<R> | ManagedRuntime.ManagedRuntime<R, unknown> | undefined,
+  getSignal: (context: TContext) => AbortSignal | undefined,
 ): (context: TContext) => Promise<TQueryFnData> {
   return async (context: TContext) => {
     const effect = effectFn(context);
-    const signal = getSignal(context);
+    const options = { signal: getSignal(context) };
 
-    // Create an effect that listens to the AbortSignal for cancellation
-    const withAbort = Effect.raceFirst(
-      effect,
-      Effect.async<never, never, never>((resume) => {
-        if (signal.aborted) {
-          resume(Effect.interrupt);
-          return;
-        }
-        const onAbort = () => resume(Effect.interrupt);
-        signal.addEventListener("abort", onAbort);
-        return Effect.sync(() => signal.removeEventListener("abort", onAbort));
-      }),
-    );
-
-    // Determine how to run the effect based on runtime type
     // Use unknown for error type since ManagedRuntime can add layer errors
-    let exit: Exit.Exit<TQueryFnData, unknown>;
-
-    if (runtime) {
-      if (hasProperty(runtime, ManagedRuntime.TypeId)) {
-        exit = await runtime.runPromiseExit(withAbort);
-      } else {
-        exit = await Runtime.runPromiseExit(runtime)(withAbort);
-      }
-    } else {
-      exit = await Effect.runPromiseExit(withAbort as Effect.Effect<TQueryFnData, TError, never>);
-    }
+    const exit: Exit.Exit<TQueryFnData, unknown> = Context.isContext(runtime)
+      ? await Effect.runPromiseExitWith(runtime)(effect, options)
+      : runtime !== undefined
+        ? await runtime.runPromiseExit(effect, options)
+        : await Effect.runPromiseExit(
+            effect as Effect.Effect<TQueryFnData, TError, never>,
+            options,
+          );
 
     if (Exit.isSuccess(exit)) return exit.value;
 
@@ -50,7 +35,7 @@ export function createEffectQueryFn<TQueryFnData, TError, TContext, R>(
 
     // Check for interruption - don't call onError, just hang
     // React Query will handle cleanup
-    if (Cause.isInterruptedOnly(cause)) {
+    if (Cause.hasInterruptsOnly(cause)) {
       return new Promise<TQueryFnData>(() => {
         // Never resolves - query is cancelled
       });
