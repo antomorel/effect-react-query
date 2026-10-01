@@ -34,7 +34,7 @@ const query = useEffectQuery({
 | Option    | Description                                                                   |
 | --------- | ----------------------------------------------------------------------------- |
 | `queryFn` | `(context: QueryFunctionContext) => Effect.Effect<TData, TError, R>`          |
-| `runtime` | Required when Effect has service requirements (`Runtime` or `ManagedRuntime`) |
+| `runtime` | Required when Effect has service requirements (`Context` or `ManagedRuntime`) |
 | `...`     | All standard React Query options (`staleTime`, `gcTime`, `retry`, etc.)       |
 
 ### With Runtime Dependencies
@@ -188,7 +188,7 @@ mutation.mutate({ name: "John", email: "john@example.com" });
 | Option       | Description                                                                   |
 | ------------ | ----------------------------------------------------------------------------- |
 | `mutationFn` | `(variables: TVariables) => Effect.Effect<TData, TError, R>`                  |
-| `runtime`    | Required when Effect has service requirements (`Runtime` or `ManagedRuntime`) |
+| `runtime`    | Required when Effect has service requirements (`Context` or `ManagedRuntime`) |
 | `onError`    | Callback on error (receives typed error)                                      |
 | `...`        | All standard React Query mutation options                                     |
 
@@ -308,7 +308,8 @@ await queryClient.fetchQuery(toQueryOptions(protectedQueryOptions("123")));
 Errors retain their typed structure and can be matched using Effect's `Match.valueTags`:
 
 ```ts
-import { Schema, Match } from "effect";
+import * as Schema from "effect/Schema";
+import * as Match from "effect/Match";
 import { useEffectQuery } from "@effect-react-query";
 
 // Define typed errors
@@ -349,17 +350,20 @@ const mutation = useEffectMutation({
 
 # Dependency Injection
 
-When Effects have service requirements, provide a `ManagedRuntime` or `Runtime`:
+When Effects have service requirements, provide a `ManagedRuntime` or a `Context`:
 
 ```ts
-import { Context, Effect, Layer, ManagedRuntime } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
 import { useEffectQuery } from "@effect-react-query";
 
 // Define a service
-class UserService extends Context.Tag("UserService")<
+class UserService extends Context.Service<
   UserService,
   { readonly getUser: (id: string) => Effect.Effect<User, NetworkError> }
->() {}
+>()("UserService") {}
 
 // Create the layer
 const UserServiceLive = Layer.succeed(

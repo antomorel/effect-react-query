@@ -1,6 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { Cause, Effect, Exit, ManagedRuntime, Runtime } from "effect";
-import { hasProperty } from "effect/Predicate";
+import { createEffectQueryFn } from "./internal/createEffectQueryFn";
 import type { UseEffectMutationOptions, UseEffectMutationResult } from "./types";
 
 /**
@@ -9,7 +8,8 @@ import type { UseEffectMutationOptions, UseEffectMutationResult } from "./types"
  * @example
  * ```ts
  * import { useEffectMutation } from "@effect-react-query";
- * import { Match, Schema } from "effect";
+ * import * as Match from "effect/Match";
+ * import * as Schema from "effect/Schema";
  *
  * // Define your errors with Schema.TaggedError
  * class NetworkError extends Schema.TaggedError<NetworkError>()("NetworkError", {
@@ -27,7 +27,7 @@ import type { UseEffectMutationOptions, UseEffectMutationResult } from "./types"
  * // Effect with requirements - runtime is required
  * const mutation = useEffectMutation({
  *   mutationFn: createUserWithService, // Effect<User, NetworkError, UserService>
- *   runtime: myRuntime, // Runtime<UserService>
+ *   runtime: myRuntime, // Context<UserService> or ManagedRuntime<UserService, E>
  *   onError: Match.valueTags({
  *     NetworkError: (e) => toast.error(e.message),
  *   }),
@@ -41,37 +41,7 @@ export function useEffectMutation<TData, TError, TVariables = void, TContext = u
 
   const mutation = useMutation<TData, TError, TVariables, TContext>({
     ...restOptions,
-    mutationFn: async (variables: TVariables) => {
-      const effect = mutationFn(variables);
-
-      // Determine how to run the effect based on runtime type
-      // Use unknown for error type since ManagedRuntime can add layer errors
-      let exit: Exit.Exit<TData, unknown>;
-
-      if (runtime) {
-        if (hasProperty(runtime, ManagedRuntime.TypeId)) {
-          exit = await runtime.runPromiseExit(effect);
-        } else {
-          exit = await Runtime.runPromiseExit(runtime)(effect);
-        }
-      } else {
-        exit = await Effect.runPromiseExit(effect as Effect.Effect<TData, TError, never>);
-      }
-
-      if (Exit.isSuccess(exit)) return exit.value;
-
-      const cause = exit.cause;
-
-      // Check for interruption - don't call onError, just hang
-      // React Query will handle cleanup
-      if (Cause.isInterruptedOnly(cause)) {
-        return new Promise<TData>(() => {
-          // Never resolves - mutation is cancelled
-        });
-      }
-
-      throw Cause.squash(cause);
-    },
+    mutationFn: createEffectQueryFn(mutationFn, runtime, () => undefined),
   });
 
   return mutation;

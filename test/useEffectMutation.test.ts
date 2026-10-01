@@ -1,5 +1,10 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { Context, Effect, Layer, ManagedRuntime, Match, Schema } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Match from "effect/Match";
+import * as Schema from "effect/Schema";
 import { describe, expect, it, vi } from "vitest";
 import type { UseEffectMutationOptions } from "../src";
 import { useEffectMutation } from "../src";
@@ -11,18 +16,18 @@ class NetworkError extends Schema.TaggedError<NetworkError>()("NetworkError", {
 }) {}
 
 class ValidationError extends Schema.TaggedError<ValidationError>()("ValidationError", {
-  fields: Schema.Record({ key: Schema.String, value: Schema.String }),
+  fields: Schema.Record(Schema.String, Schema.String),
 }) {}
 
 // Define a service for testing runtime requirements
-class UserService extends Context.Tag("UserService")<
+class UserService extends Context.Service<
   UserService,
   {
     readonly createUser: (
       name: string,
     ) => Effect.Effect<{ id: string; name: string }, NetworkError>;
   }
->() {}
+>()("UserService") {}
 
 // ============================================================================
 // Hook Behavior Tests

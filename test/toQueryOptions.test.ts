@@ -1,5 +1,9 @@
 import { QueryClient } from "@tanstack/react-query";
-import { Context, Effect, Layer, ManagedRuntime, Schema } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vitest";
 import { effectQueryOptions, toQueryOptions } from "../src";
 
@@ -13,10 +17,10 @@ class NotFoundError extends Schema.TaggedError<NotFoundError>()("NotFoundError",
 }) {}
 
 // Define a service for testing runtime requirements
-class UserService extends Context.Tag("UserService")<
+class UserService extends Context.Service<
   UserService,
   { readonly getUser: (id: string) => Effect.Effect<{ id: string; name: string }, NetworkError> }
->() {}
+>()("UserService") {}
 
 function createTestQueryClient(): QueryClient {
   return new QueryClient({
@@ -169,17 +173,15 @@ describe("toQueryOptions with runtime", () => {
     await runtime.dispose();
   });
 
-  it("should work with standard Runtime", async () => {
+  it("should work with a Context", async () => {
     const queryClient = createTestQueryClient();
 
-    const UserServiceLive = Layer.succeed(
+    const runtime = Context.make(
       UserService,
       UserService.of({
         getUser: (id) => Effect.succeed({ id, name: `Runtime User ${id}` }),
       }),
     );
-
-    const runtime = await Effect.runPromise(Layer.toRuntime(UserServiceLive).pipe(Effect.scoped));
 
     const options = effectQueryOptions({
       queryKey: ["user-standard-runtime", "789"] as const,

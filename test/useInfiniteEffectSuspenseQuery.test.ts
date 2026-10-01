@@ -1,6 +1,10 @@
 import type { InfiniteData } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { Context, Effect, Layer, ManagedRuntime, Schema } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Schema from "effect/Schema";
 import { describe, expect, it, vi } from "vitest";
 import type {
   UseInfiniteEffectSuspenseQueryOptions,
@@ -21,10 +25,10 @@ interface PostsPage {
 }
 
 // Define a service for testing runtime requirements
-class PostService extends Context.Tag("PostService")<
+class PostService extends Context.Service<
   PostService,
   { readonly getPosts: (cursor: number) => Effect.Effect<PostsPage, NetworkError> }
->() {}
+>()("PostService") {}
 
 // ============================================================================
 // Hook Behavior Tests
