@@ -1,4 +1,8 @@
-import { Context, Effect, Layer, ManagedRuntime, Schema } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vitest";
 import { infiniteEffectQueryOptions } from "../src";
 
@@ -14,10 +18,10 @@ interface PostsPage {
 }
 
 // Define a service for testing runtime requirements
-class PostService extends Context.Tag("PostService")<
+class PostService extends Context.Service<
   PostService,
   { readonly getPosts: (cursor: number) => Effect.Effect<PostsPage, NetworkError> }
->() {}
+>()("PostService") {}
 
 describe("infiniteEffectQueryOptions", () => {
   it("should export infiniteEffectQueryOptions", () => {

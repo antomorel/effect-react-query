@@ -1,6 +1,8 @@
 import type { QueryFunctionContext, QueryKey } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
-import type { Effect, ManagedRuntime, Runtime } from "effect";
+import type * as Context from "effect/Context";
+import type * as Effect from "effect/Effect";
+import type * as ManagedRuntime from "effect/ManagedRuntime";
 import { createEffectQueryFn } from "./internal/createEffectQueryFn";
 import type {
   DefinedInitialDataEffectQueryOptions,
@@ -20,7 +22,9 @@ import type {
  * @example
  * ```ts
  * import { useEffectQuery } from "@effect-react-query";
- * import { Match, Schema, Effect } from "effect";
+ * import * as Match from "effect/Match";
+ * import * as Schema from "effect/Schema";
+ * import * as Effect from "effect/Effect";
  *
  * // Effect without requirements (R = never)
  * const query = useEffectQuery({
@@ -32,7 +36,7 @@ import type {
  * const query = useEffectQuery({
  *   queryKey: ["user", userId],
  *   queryFn: () => fetchUserWithService(userId), // Effect<User, NetworkError, UserService>
- *   runtime: myRuntime, // Runtime<UserService>
+ *   runtime: myRuntime, // Context<UserService> or ManagedRuntime<UserService, E>
  * });
  *
  * // Handle errors with Match
@@ -86,7 +90,7 @@ export function useEffectQuery<
 ): UseEffectQueryResult<TData, TError> {
   const { queryFn, runtime, ...restOptions } = options as {
     queryFn: (context: QueryFunctionContext<TQueryKey>) => Effect.Effect<TQueryFnData, TError, R>;
-    runtime?: Runtime.Runtime<R> | ManagedRuntime.ManagedRuntime<R, unknown>;
+    runtime?: Context.Context<R> | ManagedRuntime.ManagedRuntime<R, unknown>;
   } & Omit<UseEffectQueryOptions<TQueryFnData, TError, TData, TQueryKey, R>, "queryFn" | "runtime">;
 
   return useQuery<TQueryFnData, TError, TData, TQueryKey>({

@@ -16,7 +16,9 @@ pnpm add @effect-react-query
 
 ```ts
 import { useEffectQuery, useEffectMutation } from "@effect-react-query";
-import { Effect, Schema, Match } from "effect";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
+import * as Match from "effect/Match";
 
 // Define typed errors
 class NetworkError extends Schema.TaggedError<NetworkError>()("NetworkError", {

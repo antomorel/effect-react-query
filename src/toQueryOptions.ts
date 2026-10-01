@@ -13,7 +13,7 @@ import type {
  * @example
  * ```ts
  * import { effectQueryOptions, toQueryOptions } from "@effect-react-query";
- * import { Effect } from "effect";
+ * import * as Effect from "effect/Effect";
  *
  * // Define reusable query options
  * const userQueryOptions = (userId: string) => effectQueryOptions({
